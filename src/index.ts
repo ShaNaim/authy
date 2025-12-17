@@ -1,16 +1,31 @@
 import { env } from "@/config/env";
 import { UserRole, PASSWORD_REQUIREMENTS } from "@/constants";
+import logger, { maskEmail } from "@/utils";
 
-console.log("🔧 Testing Configuration...\n");
+logger.info("🚀 Auth Service Starting...");
 
-console.log("Environment:", env.NODE_ENV);
-console.log("Port:", env.PORT);
-console.log("Database:", env.DATABASE_URL.substring(0, 30) + "...");
-console.log("JWT Access Secret Length:", env.JWT_ACCESS_SECRET.length);
-console.log("JWT Refresh Secret Length:", env.JWT_REFRESH_SECRET.length);
+logger.info("Configuration loaded", {
+  environment: env.NODE_ENV,
+  port: env.PORT,
+  databaseConfigured: !!env.DATABASE_URL,
+});
 
-console.log("\nConstants loaded:");
-console.log("User Roles:", Object.values(UserRole));
-console.log("Password Min Length:", PASSWORD_REQUIREMENTS.minLength);
+logger.debug("Security settings", {
+  maxLoginAttempts: env.MAX_LOGIN_ATTEMPTS,
+  lockoutDuration: env.LOCKOUT_DURATION_MINUTES,
+  bcryptRounds: env.BCRYPT_ROUNDS,
+});
 
-console.log("\n✅ Configuration loaded successfully!");
+// Test sensitive data sanitization
+logger.info("User logged in", {
+  email: maskEmail("user@example.com"),
+  password: "this-should-be-redacted", // Will be sanitized
+  token: "secret-token", // Will be sanitized
+});
+
+logger.info("Constants loaded", {
+  roles: Object.values(UserRole),
+  passwordMinLength: PASSWORD_REQUIREMENTS.minLength,
+});
+
+logger.info("✅ Configuration loaded successfully!");
