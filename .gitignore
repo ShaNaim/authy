@@ -9,6 +9,10 @@ build/
 .env
 .env.local
 .env.*.local
+.env.docker
+
+# Keep the example
+!.env.example
 
 # Logs
 logs/

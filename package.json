@@ -9,8 +9,12 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "test": "echo \"Tests will be added in Phase 10\" && exit 0",
-    "lint": "echo \"Linting will be configured later\" && exit 0"
+    "docker:build": "docker build -t auth-service .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f auth-service",
+    "docker:restart": "docker-compose restart auth-service",
+    "test": "echo \"Tests will be added in Phase 10\" && exit 0"
   },
   "keywords": [],
   "author": "",
