@@ -49,6 +49,12 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).pipe(z.number().min(1000)).default(900000),
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).pipe(z.number().min(1)).default(100),
   AUTH_RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).pipe(z.number().min(1)).default(5),
+
+  // Internal / S2S API key
+  INTERNAL_API_KEY: z.string().min(32, "INTERNAL_API_KEY must be at least 32 characters").optional(),
+
+  // Password history
+  PASSWORD_HISTORY_LIMIT: z.string().transform(Number).pipe(z.number().min(1).max(24)).default(5),
 });
 
 /**
