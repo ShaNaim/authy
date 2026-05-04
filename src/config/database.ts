@@ -19,13 +19,13 @@ export function getPrismaClient(): PrismaClient {
       ],
     });
 
-    // Log database warnings
-    prisma.$on("warn", (e: { message: any }) => {
+    // Log database warnings and errors via Prisma event emitter
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma as any).$on("warn", (e: { message: string }) => {
       logger.warn("Database warning", { message: e.message });
     });
-
-    // Log database errors
-    prisma.$on("error", (e: { message: any }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (prisma as any).$on("error", (e: { message: string }) => {
       logger.error("Database error", { message: e.message });
     });
 

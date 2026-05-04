@@ -1,9 +1,5 @@
-// User & roles
-export enum UserRole {
-  USER = "USER",
-  ADMIN = "ADMIN",
-  MODERATOR = "MODERATOR",
-}
+// User & roles — sourced from Prisma so there is a single source of truth
+export { UserRole } from "@prisma/client";
 
 // Tokens
 export enum TokenType {
