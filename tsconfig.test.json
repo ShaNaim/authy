@@ -1,0 +1,37 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rootDir": ".",
+    "types": ["node", "jest"],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false,
+    "strict": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/app": ["./src/app"],
+      "@/config": ["./src/config/index"],
+      "@/constants": ["./src/constants/index"],
+      "@/controllers": ["./src/controllers/index"],
+      "@/middleware": ["./src/middleware/index"],
+      "@/repositories": ["./src/repositories/index"],
+      "@/routes": ["./src/routes/index"],
+      "@/services": ["./src/services/index"],
+      "@/types": ["./src/types/index"],
+      "@/utils": ["./src/utils/index"],
+      "@/config/*": ["./src/config/*"],
+      "@/constants/*": ["./src/constants/*"],
+      "@/controllers/*": ["./src/controllers/*"],
+      "@/middleware/*": ["./src/middleware/*"],
+      "@/repositories/*": ["./src/repositories/*"],
+      "@/routes/*": ["./src/routes/*"],
+      "@/services/*": ["./src/services/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/utils/*": ["./src/utils/*"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}
