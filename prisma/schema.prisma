@@ -24,6 +24,21 @@ model User {
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
   lastLoginIp         String?
+
+  // Profile fields (user-editable)
+  firstName           String?
+  lastName            String?
+  contact             String?
+  address             String?
+  dob                 DateTime?
+  nid                 String?   @unique
+
+  // Organisational fields (admin-only)
+  designation         String?
+  department          String?
+  position            String?
+  identifierNumber    String?   @unique
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

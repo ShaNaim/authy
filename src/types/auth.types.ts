@@ -32,6 +32,18 @@ export interface UserResponse {
   role: UserRole;
   isVerified: boolean;
   isActive: boolean;
+  // Profile fields
+  firstName?: string | null;
+  lastName?: string | null;
+  contact?: string | null;
+  address?: string | null;
+  dob?: Date | null;
+  nid?: string | null;
+  // Organisational fields (admin-managed)
+  designation?: string | null;
+  department?: string | null;
+  position?: string | null;
+  identifierNumber?: string | null;
   lastLoginAt?: Date | null;
   createdAt: Date;
 }

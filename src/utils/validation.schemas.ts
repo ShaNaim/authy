@@ -48,7 +48,11 @@ export const refreshTokenSchema = z.object({
 
 export const updateProfileSchema = z.object({
   firstName: z.string().min(1).max(50).trim().optional(),
-  lastName: z.string().min(1).max(50).trim().optional(),
+  lastName:  z.string().min(1).max(50).trim().optional(),
+  contact:   z.string().min(1).max(30).trim().optional(),
+  address:   z.string().min(1).max(255).trim().optional(),
+  dob:       z.coerce.date().optional(),
+  nid:       z.string().regex(/^\d{20}$/, "NID must be exactly 20 digits").optional(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: "At least one field must be provided",
 });
@@ -59,8 +63,12 @@ export const paginationSchema = z.object({
 });
 
 export const adminUpdateUserSchema = z.object({
-  role: z.enum(["USER", "ADMIN", "MODERATOR"]).optional(),
-  isActive: z.boolean().optional(),
+  role:             z.enum(["USER", "ADMIN", "MODERATOR"]).optional(),
+  isActive:         z.boolean().optional(),
+  designation:      z.string().min(1).max(100).trim().optional(),
+  department:       z.string().min(1).max(100).trim().optional(),
+  position:         z.string().min(1).max(100).trim().optional(),
+  identifierNumber: z.string().min(1).max(50).trim().optional(),
 }).refine((data) => Object.keys(data).length > 0, {
   message: "At least one field must be provided",
 });

@@ -3,7 +3,7 @@ import { authController } from "@/controllers/auth.controller";
 import { authenticate } from "@/middleware/auth.middleware";
 import { validate } from "@/middleware/validation.middleware";
 import { authRateLimiter, resendRateLimiter } from "@/middleware/rate-limit.middleware";
-import { registerSchema, loginSchema, resendVerificationSchema, forgotPasswordSchema, resetPasswordSchema, changePasswordSchema, refreshTokenSchema } from "@/utils/validation.schemas";
+import { registerSchema, loginSchema, resendVerificationSchema, forgotPasswordSchema, resetPasswordSchema, changePasswordSchema, refreshTokenSchema, updateProfileSchema } from "@/utils/validation.schemas";
 
 const router = Router();
 
@@ -18,6 +18,7 @@ router.post("/reset-password", validate(resetPasswordSchema), authController.res
 
 // Protected routes
 router.get("/me", authenticate, authController.getMe);
+router.patch("/me", authenticate, validate(updateProfileSchema), authController.updateMe);
 router.post("/logout", authenticate, authController.logout);
 router.post("/logout-all", authenticate, authController.logoutAll);
 router.put("/change-password", authenticate, validate(changePasswordSchema), authController.changePassword);

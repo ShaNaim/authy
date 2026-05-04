@@ -43,6 +43,16 @@ function toUserResponse(user: User): UserResponse {
     role: user.role as unknown as UserRole,
     isVerified: user.isVerified,
     isActive: user.isActive,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    contact: user.contact,
+    address: user.address,
+    dob: user.dob,
+    nid: user.nid,
+    designation: user.designation,
+    department: user.department,
+    position: user.position,
+    identifierNumber: user.identifierNumber,
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
   };
@@ -386,6 +396,44 @@ export class AuthService {
     });
 
     return { message: "Password changed successfully. Please log in again." };
+  }
+
+  // ── Update Me ──────────────────────────────────────────────────────────────
+
+  async updateMe(
+    userId: string,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      contact?: string;
+      address?: string;
+      dob?: Date;
+      nid?: string;
+    },
+    meta: RequestMeta = {}
+  ): Promise<UserResponse> {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError("User not found");
+
+    try {
+      const updated = await userRepository.update(userId, data);
+      await cacheService.invalidateUser(userId);
+
+      await auditService.log({
+        userId,
+        action: AuditAction.PROFILE_UPDATED,
+        details: { fields: Object.keys(data) },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+        requestId: meta.requestId,
+      });
+
+      return toUserResponse(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("nid")) throw new ConflictError("NID is already registered to another account");
+      throw err;
+    }
   }
 
   // ── Get Me ─────────────────────────────────────────────────────────────────

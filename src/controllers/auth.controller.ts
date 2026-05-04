@@ -91,6 +91,15 @@ export const authController = {
     }
   },
 
+  async updateMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = await authService.updateMe(req.user!.userId, req.body, getMeta(req));
+      sendSuccess(res, { user }, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { refreshToken } = req.body as { refreshToken: string };
