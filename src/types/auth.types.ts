@@ -44,6 +44,7 @@ export interface AccessTokenPayload {
   email: string;
   role: UserRole;
   type: "access";
+  jti: string;
   iat?: number;
   exp?: number;
 }
