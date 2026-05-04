@@ -461,6 +461,38 @@ export class AuthService {
     return toUserResponse(updated);
   }
 
+  async updateUser(
+    userId: string,
+    adminId: string,
+    data: { role?: UserRole; isActive?: boolean },
+    meta: RequestMeta = {}
+  ): Promise<UserResponse> {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError("User not found");
+    if (userId === adminId && data.isActive === false) {
+      throw new ValidationError("Cannot deactivate your own account");
+    }
+
+    const updated = await userRepository.update(userId, data);
+
+    if (data.isActive === false) {
+      await tokenService.revokeAllUserRefreshTokens(userId);
+      await cacheService.setUserRevocationTime(userId, Math.floor(Date.now() / 1000));
+    }
+    await cacheService.invalidateUser(userId);
+
+    await auditService.log({
+      userId: adminId,
+      action: AuditAction.USER_UPDATED,
+      details: { targetUserId: userId, changes: data },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      requestId: meta.requestId,
+    });
+
+    return toUserResponse(updated);
+  }
+
   async deleteUser(userId: string, adminId: string, meta: RequestMeta = {}): Promise<void> {
     const user = await userRepository.findById(userId);
     if (!user) throw new NotFoundError("User not found");

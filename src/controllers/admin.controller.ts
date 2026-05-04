@@ -38,6 +38,15 @@ export const adminController = {
     }
   },
 
+  async updateUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = await authService.updateUser(req.params["id"]!, req.user!.userId, req.body, getMeta(req));
+      sendSuccess(res, { user }, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async suspendUser(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = await authService.suspendUser(req.params["id"]!, req.user!.userId, getMeta(req));
