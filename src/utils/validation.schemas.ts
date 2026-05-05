@@ -63,8 +63,17 @@ export const paginationSchema = z.object({
 });
 
 export const adminUpdateUserSchema = z.object({
+  // Access control
   role:             z.enum(["USER", "ADMIN", "MODERATOR"]).optional(),
   isActive:         z.boolean().optional(),
+  // Profile fields
+  firstName:        z.string().min(1).max(50).trim().optional(),
+  lastName:         z.string().min(1).max(50).trim().optional(),
+  contact:          z.string().min(1).max(30).trim().optional(),
+  address:          z.string().min(1).max(255).trim().optional(),
+  dob:              z.coerce.date().optional(),
+  nid:              z.string().regex(/^\d{20}$/, "NID must be exactly 20 digits").optional(),
+  // Organisational fields
   designation:      z.string().min(1).max(100).trim().optional(),
   department:       z.string().min(1).max(100).trim().optional(),
   position:         z.string().min(1).max(100).trim().optional(),

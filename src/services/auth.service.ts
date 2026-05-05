@@ -512,7 +512,12 @@ export class AuthService {
   async updateUser(
     userId: string,
     adminId: string,
-    data: { role?: UserRole; isActive?: boolean },
+    data: {
+      role?: UserRole; isActive?: boolean;
+      firstName?: string; lastName?: string; contact?: string;
+      address?: string; dob?: Date; nid?: string;
+      designation?: string; department?: string; position?: string; identifierNumber?: string;
+    },
     meta: RequestMeta = {}
   ): Promise<UserResponse> {
     const user = await userRepository.findById(userId);
