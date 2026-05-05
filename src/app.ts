@@ -18,7 +18,7 @@ app.use(
   cors({
     origin: env.NODE_ENV === "production" ? env.FRONTEND_URL : true,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID", "X-Internal-API-Key"],
     exposedHeaders: ["X-Request-ID"],
   }),
