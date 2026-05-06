@@ -509,6 +509,38 @@ export class AuthService {
     return toUserResponse(updated);
   }
 
+  async forceActivateUser(userId: string, adminId: string, adminPassword: string, meta: RequestMeta = {}): Promise<UserResponse> {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError("User not found");
+    if (user.isVerified) throw new ValidationError("User is already verified; use the activate endpoint instead");
+
+    const admin = await userRepository.findById(adminId);
+    if (!admin) throw new NotFoundError("Admin not found");
+    const passwordValid = await comparePassword(adminPassword, admin.passwordHash);
+    if (!passwordValid) throw new AuthenticationError("Incorrect password");
+
+    const updated = await userRepository.update(userId, {
+      isActive: true,
+      isVerified: true,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    });
+
+    await tokenService.invalidateAllEmailVerificationTokens(userId);
+    await cacheService.invalidateUser(userId);
+
+    await auditService.log({
+      userId: adminId,
+      action: AuditAction.ADMIN_FORCE_ACTIVATED,
+      details: { targetUserId: userId },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      requestId: meta.requestId,
+    });
+
+    return toUserResponse(updated);
+  }
+
   async updateUser(
     userId: string,
     adminId: string,

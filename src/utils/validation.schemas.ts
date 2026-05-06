@@ -92,3 +92,8 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>;
+
+export const adminForceActivateSchema = z.object({
+  adminPassword: z.string().min(1, "Your password is required"),
+});
+export type AdminForceActivateInput = z.infer<typeof adminForceActivateSchema>;

@@ -99,6 +99,17 @@ export class TokenRepository {
     }
   }
 
+  async invalidateAllEmailVerificationTokens(userId: string): Promise<void> {
+    try {
+      await this.prisma.emailVerification.updateMany({
+        where: { userId, isUsed: false },
+        data: { isUsed: true },
+      });
+    } catch {
+      throw new DatabaseError("Failed to invalidate email verification tokens");
+    }
+  }
+
   // ── Password Reset Tokens ────────────────────────────────────────────────────
 
   async createPasswordResetToken(data: {

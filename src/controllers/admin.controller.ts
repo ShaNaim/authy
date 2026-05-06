@@ -65,6 +65,15 @@ export const adminController = {
     }
   },
 
+  async forceActivateUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = await authService.forceActivateUser(req.params["id"]!, req.user!.userId, req.body.adminPassword, getMeta(req));
+      sendSuccess(res, { user }, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async deleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       await authService.deleteUser(req.params["id"]!, req.user!.userId, getMeta(req));

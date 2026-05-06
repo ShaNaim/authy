@@ -89,6 +89,10 @@ export class TokenService {
     return rawToken;
   }
 
+  async invalidateAllEmailVerificationTokens(userId: string): Promise<void> {
+    return tokenRepository.invalidateAllEmailVerificationTokens(userId);
+  }
+
   async consumeEmailVerificationToken(rawToken: string): Promise<string> {
     const tokenHash = hashToken(rawToken);
     const stored = await tokenRepository.findEmailVerificationToken(tokenHash);
