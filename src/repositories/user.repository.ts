@@ -92,7 +92,7 @@ export class UserRepository {
     try {
       return await this.prisma.user.update({
         where: { id },
-        data: { isVerified: true },
+        data: { isVerified: true, isActive: true },
       });
     } catch {
       throw new DatabaseError("Failed to mark email as verified");
@@ -134,11 +134,13 @@ export class UserRepository {
     limit: number;
     role?: UserRole;
     isActive?: boolean;
+    isVerified?: boolean;
   }): Promise<{ users: User[]; total: number }> {
     const skip = (options.page - 1) * options.limit;
     const where: Prisma.UserWhereInput = {};
     if (options.role !== undefined) where.role = options.role;
     if (options.isActive !== undefined) where.isActive = options.isActive;
+    if (options.isVerified !== undefined) where.isVerified = options.isVerified;
 
     try {
       const [users, total] = await this.prisma.$transaction([

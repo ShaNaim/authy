@@ -15,12 +15,13 @@ function getMeta(req: Request) {
 export const adminController = {
   async listUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { page = "1", limit = "20", role, isActive } = req.query as Record<string, string>;
+      const { page = "1", limit = "20", role, isActive, isVerified } = req.query as Record<string, string>;
       const options = {
         page: Number(page),
         limit: Math.min(Number(limit), 100),
         role: role as UserRole | undefined,
         isActive: isActive !== undefined ? isActive === "true" : undefined,
+        isVerified: isVerified !== undefined ? isVerified === "true" : undefined,
       };
       const { users, total } = await authService.listUsers(options);
       sendPaginated(res, users, total, options.page, options.limit, req.requestId);

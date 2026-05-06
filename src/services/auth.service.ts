@@ -112,10 +112,13 @@ export class AuthService {
     const user = await userRepository.findByEmail(credentials.email);
     const genericError = new AuthenticationError("Invalid email or password");
 
-    if (!user || !user.isActive) {
+    // Early rejection for unknown users or accounts explicitly suspended (verified but inactive).
+    // Unverified users (both flags false) are allowed through so they get a helpful message
+    // after their password is checked rather than a generic "not found" error.
+    if (!user || (user.isVerified && !user.isActive)) {
       await auditService.log({
         action: AuditAction.LOGIN_FAILED,
-        details: { email: credentials.email, reason: "user_not_found" },
+        details: { email: credentials.email, reason: "user_not_found_or_suspended" },
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         requestId: meta.requestId,
@@ -463,6 +466,7 @@ export class AuthService {
     limit: number;
     role?: UserRole;
     isActive?: boolean;
+    isVerified?: boolean;
   }): Promise<{ users: UserResponse[]; total: number }> {
     const { users, total } = await userRepository.findMany(options);
     return { users: users.map(toUserResponse), total };

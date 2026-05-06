@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 
 const SEED_PASSWORD = "Password@123";
 const BCRYPT_ROUNDS = 10;
+const SEED_EMAIL_DOMAIN = "@example.com";
 
 const firstNames = [
   "Alice", "Bob", "Carol", "David", "Emma", "Frank", "Grace", "Henry",
@@ -21,7 +22,7 @@ const lastNames = [
   "Martin", "Jackson", "Thompson", "White", "Lopez", "Lee", "Gonzalez",
   "Harris", "Clark", "Lewis", "Robinson", "Walker", "Perez", "Hall",
   "Young", "Allen", "Sanchez", "Wright", "King", "Scott", "Green",
-  "Baker", "Adams", "Nelson", "Carter", "Mitchell", "Perez", "Roberts",
+  "Baker", "Adams", "Nelson", "Carter", "Mitchell", "Roberts",
 ];
 
 const departments = [
@@ -54,8 +55,9 @@ function randomDate(start: Date, end: Date): Date {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 }
 
+// 20-digit numeric string required by the schema
 function generateNid(index: number): string {
-  return `NID${String(index).padStart(8, "0")}`;
+  return String(index).padStart(20, "0");
 }
 
 function generateIdentifier(index: number): string {
@@ -66,82 +68,71 @@ function generatePhone(): string {
   return `+1${Math.floor(2000000000 + Math.random() * 8000000000)}`;
 }
 
-interface UserSeed {
-  email: string;
-  passwordHash: string;
-  role: UserRole;
-  isVerified: boolean;
-  isActive: boolean;
-  firstName: string;
-  lastName: string;
-  contact: string;
-  address: string;
-  dob: Date;
-  nid: string;
-  designation: string;
-  department: string;
-  position: string;
-  identifierNumber: string;
+/**
+ * Status distribution (200 users):
+ *   i  1 –  2 → ADMIN,      active:   isVerified true,  isActive true   (5%)
+ *   i  3 – 10 → MODERATOR,  active:   isVerified true,  isActive true
+ *   i 11 –160 → USER,       unverified: isVerified false, isActive false (75%)
+ *   i 161–200 → USER,       suspended:  isVerified true,  isActive false (20%)
+ */
+function resolveStatus(i: number): { isVerified: boolean; isActive: boolean } {
+  if (i <= 10) return { isVerified: true, isActive: true };    // active
+  if (i <= 160) return { isVerified: false, isActive: false }; // unverified
+  return { isVerified: true, isActive: false };                // suspended
 }
 
-async function buildUsers(passwordHash: string): Promise<UserSeed[]> {
-  const users: UserSeed[] = [];
+function resolveRole(i: number): UserRole {
+  if (i <= 2) return UserRole.ADMIN;
+  if (i <= 10) return UserRole.MODERATOR;
+  return UserRole.USER;
+}
+
+async function main() {
+  // ── 1. Remove all previously seeded users ─────────────────────────────────
+  console.log("Removing previously seeded users...");
+  const { count: deleted } = await prisma.user.deleteMany({
+    where: { email: { endsWith: SEED_EMAIL_DOMAIN } },
+  });
+  console.log(`Deleted ${deleted} existing seed users.`);
+
+  // ── 2. Hash shared password once ──────────────────────────────────────────
+  console.log("Hashing seed password...");
+  const passwordHash = await bcrypt.hash(SEED_PASSWORD, BCRYPT_ROUNDS);
+
+  // ── 3. Create 200 users ───────────────────────────────────────────────────
+  console.log("Seeding 200 users...");
 
   for (let i = 1; i <= 200; i++) {
     const firstName = pick(firstNames);
     const lastName = pick(lastNames);
-    const tag = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}`;
-    const email = `${tag}@example.com`;
+    const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}${SEED_EMAIL_DOMAIN}`;
 
-    let role: UserRole = UserRole.USER;
-    if (i <= 2) role = UserRole.ADMIN;
-    else if (i <= 10) role = UserRole.MODERATOR;
-
-    users.push({
-      email,
-      passwordHash,
-      role,
-      isVerified: Math.random() > 0.2,
-      isActive: Math.random() > 0.05,
-      firstName,
-      lastName,
-      contact: generatePhone(),
-      address: pick(addresses),
-      dob: randomDate(new Date("1970-01-01"), new Date("2000-12-31")),
-      nid: generateNid(i),
-      designation: pick(designations),
-      department: pick(departments),
-      position: pick(positions),
-      identifierNumber: generateIdentifier(i),
+    await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        role: resolveRole(i),
+        ...resolveStatus(i),
+        firstName,
+        lastName,
+        contact: generatePhone(),
+        address: pick(addresses),
+        dob: randomDate(new Date("1970-01-01"), new Date("2000-12-31")),
+        nid: generateNid(i),
+        designation: pick(designations),
+        department: pick(departments),
+        position: pick(positions),
+        identifierNumber: generateIdentifier(i),
+      },
     });
   }
 
-  return users;
-}
-
-async function main() {
-  console.log("Hashing seed password...");
-  const passwordHash = await bcrypt.hash(SEED_PASSWORD, BCRYPT_ROUNDS);
-
-  console.log("Building user data...");
-  const users = await buildUsers(passwordHash);
-
-  console.log(`Seeding ${users.length} users...`);
-
-  let created = 0;
-  let skipped = 0;
-
-  for (const user of users) {
-    const existing = await prisma.user.findUnique({ where: { email: user.email } });
-    if (existing) {
-      skipped++;
-      continue;
-    }
-    await prisma.user.create({ data: user });
-    created++;
-  }
-
-  console.log(`Done. Created: ${created}, Skipped (already exist): ${skipped}`);
+  console.log("Done.");
+  console.log("  Admins (active + verified):      2  (1%)");
+  console.log("  Moderators (active + verified):  8  (4%)");
+  console.log("  Users — unverified:            150 (75%)");
+  console.log("  Users — suspended:              40 (20%)");
+  console.log(`  Shared password: ${SEED_PASSWORD}`);
 }
 
 main()

@@ -19,7 +19,7 @@ model User {
   passwordHash        String
   role                UserRole  @default(USER)
   isVerified          Boolean   @default(false)
-  isActive            Boolean   @default(true)
+  isActive            Boolean   @default(false)
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
   lastLoginAt         DateTime?
