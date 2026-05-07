@@ -2,6 +2,8 @@ export { CacheService, cacheService } from "./cache.service";
 export { TokenService, tokenService } from "./token.service";
 export { AuditService, auditService } from "./audit.service";
 export { AuthService, authService } from "./auth.service";
+export { AclService, aclService } from "./acl.service";
+export { NotificationService, notificationService } from "./notification.service";
 export {
   getEmailQueue,
   enqueueEmail,

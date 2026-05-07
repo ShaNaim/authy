@@ -1,5 +1,6 @@
 import { User } from "@prisma/client";
 import { UserRole } from "@/constants";
+import { appRepository } from "@/repositories/app.repository";
 import { userRepository } from "@/repositories/user.repository";
 import { cacheService } from "@/services/cache.service";
 import { tokenService } from "@/services/token.service";
@@ -625,12 +626,17 @@ export class AuthService {
   ): Promise<AuthTokens> {
     const jti = uuidv4();
 
+    const [appPermissions] = await Promise.all([
+      appRepository.resolveUserPermissions(user.id),
+    ]);
+
     const accessPayload: AccessTokenPayload = {
       userId: user.id,
       email: user.email,
       role: user.role,
       type: "access",
       jti,
+      appPermissions,
     };
 
     const refreshPayload: RefreshTokenPayload = {

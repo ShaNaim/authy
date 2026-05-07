@@ -100,6 +100,22 @@ function passwordChangedEmailHtml(userName?: string): string {
     </body></html>`;
 }
 
+function adminNotificationEmailHtml(title: string, body: string, userName?: string): string {
+  return `
+    <!DOCTYPE html><html><head><meta charset="utf-8"/></head>
+    <body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:20px">
+      <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;padding:40px">
+        <h2 style="color:#333">${title}</h2>
+        <p>Hi ${userName ?? "Admin"},</p>
+        <p>${body}</p>
+        <p style="color:#666;font-size:14px">Log in to the Authy admin panel to review and take action.</p>
+        <a href="${env.FRONTEND_URL}/admin/notifications" style="display:inline-block;padding:12px 24px;background:#4F46E5;color:#fff;text-decoration:none;border-radius:6px;margin:16px 0">
+          View in Admin Panel
+        </a>
+      </div>
+    </body></html>`;
+}
+
 // ── Job Processor ─────────────────────────────────────────────────────────────
 
 async function processEmailJob(job: Job<EmailJob>): Promise<void> {
@@ -135,6 +151,14 @@ async function processEmailJob(job: Job<EmailJob>): Promise<void> {
         to: data.to,
         subject: "Your password has been changed",
         html: passwordChangedEmailHtml(data.userName),
+      });
+      break;
+
+    case EMAIL_JOB_TYPES.SEND_ADMIN_NOTIFICATION:
+      await sendMail({
+        to: data.to,
+        subject: `[Authy Admin] ${data.title}`,
+        html: adminNotificationEmailHtml(data.title, data.body, data.userName),
       });
       break;
   }
