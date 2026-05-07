@@ -19,6 +19,7 @@ export const EMAIL_JOB_TYPES = {
   SEND_PASSWORD_RESET: "send-password-reset-email",
   SEND_WELCOME: "send-welcome-email",
   SEND_PASSWORD_CHANGED: "send-password-changed-email",
+  SEND_ADMIN_NOTIFICATION: "send-admin-notification-email",
 } as const;
 
 export interface SendVerificationEmailJob {
@@ -47,11 +48,20 @@ export interface SendPasswordChangedEmailJob {
   userName?: string;
 }
 
+export interface SendAdminNotificationEmailJob {
+  type: typeof EMAIL_JOB_TYPES.SEND_ADMIN_NOTIFICATION;
+  to: string;
+  title: string;
+  body: string;
+  userName?: string;
+}
+
 export type EmailJob =
   | SendVerificationEmailJob
   | SendPasswordResetEmailJob
   | SendWelcomeEmailJob
-  | SendPasswordChangedEmailJob;
+  | SendPasswordChangedEmailJob
+  | SendAdminNotificationEmailJob;
 
 let emailQueue: Queue<EmailJob> | null = null;
 let emailWorker: Worker<EmailJob> | null = null;

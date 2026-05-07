@@ -97,3 +97,102 @@ export const adminForceActivateSchema = z.object({
   adminPassword: z.string().min(1, "Your password is required"),
 });
 export type AdminForceActivateInput = z.infer<typeof adminForceActivateSchema>;
+
+// ── App management ────────────────────────────────────────────────────────────
+
+export const createAppSchema = z.object({
+  name: z.string().min(2).max(50).regex(/^[a-z0-9-]+$/, "Name must be lowercase alphanumeric with hyphens").trim(),
+  displayName: z.string().min(1).max(100).trim(),
+  description: z.string().max(500).trim().optional(),
+  allowedIps: z.array(z.string().regex(/^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+$/, "Invalid IP address")).optional(),
+});
+export type CreateAppInput = z.infer<typeof createAppSchema>;
+
+export const updateAppSchema = z.object({
+  displayName: z.string().min(1).max(100).trim().optional(),
+  description: z.string().max(500).trim().optional(),
+  allowedIps: z.array(z.string().regex(/^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+$/, "Invalid IP address")).optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateAppInput = z.infer<typeof updateAppSchema>;
+
+// ── Feature management ────────────────────────────────────────────────────────
+
+const featureInputSchema = z.object({
+  key: z.string().min(1).max(100).regex(/^[a-z0-9_]+$/, "Feature key must be snake_case").trim(),
+  displayName: z.string().min(1).max(100).trim(),
+  description: z.string().max(500).trim().optional(),
+});
+
+export const addFeatureSchema = featureInputSchema;
+export type AddFeatureInput = z.infer<typeof addFeatureSchema>;
+
+export const updateFeatureSchema = z.object({
+  displayName: z.string().min(1).max(100).trim().optional(),
+  description: z.string().max(500).trim().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateFeatureInput = z.infer<typeof updateFeatureSchema>;
+
+export const syncFeaturesSchema = z.object({
+  secret: z.string().min(1, "App secret is required"),
+  features: z.array(featureInputSchema).min(1, "Feature list cannot be empty"),
+});
+export type SyncFeaturesInput = z.infer<typeof syncFeaturesSchema>;
+
+// ── Role management ───────────────────────────────────────────────────────────
+
+export const createRoleSchema = z.object({
+  name: z.string().min(1).max(50).regex(/^[a-z0-9_-]+$/, "Role name must be lowercase alphanumeric").trim(),
+  displayName: z.string().min(1).max(100).trim(),
+  description: z.string().max(500).trim().optional(),
+  isDefault: z.boolean().optional(),
+});
+export type CreateRoleInput = z.infer<typeof createRoleSchema>;
+
+export const updateRoleSchema = z.object({
+  displayName: z.string().min(1).max(100).trim().optional(),
+  description: z.string().max(500).trim().optional(),
+  isDefault: z.boolean().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
+
+export const setRoleFeaturesSchema = z.object({
+  featureIds: z.array(z.string().uuid()).min(0),
+});
+export type SetRoleFeaturesInput = z.infer<typeof setRoleFeaturesSchema>;
+
+// ── User-app access ───────────────────────────────────────────────────────────
+
+export const assignUserToAppSchema = z.object({
+  userId: z.string().uuid("Invalid user ID"),
+  roleId: z.string().uuid("Invalid role ID").optional(),
+});
+export type AssignUserToAppInput = z.infer<typeof assignUserToAppSchema>;
+
+export const updateUserAppSchema = z.object({
+  roleId: z.string().uuid().nullable().optional(),
+  isActive: z.boolean().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateUserAppInput = z.infer<typeof updateUserAppSchema>;
+
+export const setUserFeaturesSchema = z.object({
+  overrides: z.array(z.object({
+    featureId: z.string().uuid(),
+    granted: z.boolean(),
+  })),
+});
+export type SetUserFeaturesInput = z.infer<typeof setUserFeaturesSchema>;
+
+// ── Notification subscriptions ────────────────────────────────────────────────
+
+export const createNotifSubSchema = z.object({
+  eventType: z.enum(["APP_REGISTRATION", "FEATURE_SYNC", "USER_ACCESS_GRANTED", "USER_ACCESS_REVOKED", "ROLE_MODIFIED"]),
+  appId: z.string().uuid().optional(),
+});
+export type CreateNotifSubInput = z.infer<typeof createNotifSubSchema>;
+
+// ── Internal ──────────────────────────────────────────────────────────────────
+
+export const internalSyncFeaturesSchema = z.object({
+  features: z.array(featureInputSchema).min(1),
+});
+export type InternalSyncFeaturesInput = z.infer<typeof internalSyncFeaturesSchema>;

@@ -49,6 +49,15 @@ export interface UserResponse {
 }
 
 /**
+ * Per-app permission snapshot embedded in the JWT
+ */
+export interface AppPermission {
+  role: string;
+  roleVersion: number;
+  features: string[];
+}
+
+/**
  * JWT Access Token Payload
  */
 export interface AccessTokenPayload {
@@ -57,6 +66,8 @@ export interface AccessTokenPayload {
   role: UserRole;
   type: "access";
   jti: string;
+  // keyed by appId — populated at login from user's active app memberships
+  appPermissions?: Record<string, AppPermission>;
   iat?: number;
   exp?: number;
 }
