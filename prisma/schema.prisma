@@ -7,11 +7,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────── Enums ───────────────────────────
+
 enum UserRole {
   USER
   ADMIN
   MODERATOR
 }
+
+enum AppStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum SyncRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationEventType {
+  APP_REGISTRATION
+  FEATURE_SYNC
+  USER_ACCESS_GRANTED
+  USER_ACCESS_REVOKED
+  ROLE_MODIFIED
+}
+
+// ─────────────────────────── Core Auth ───────────────────────
 
 model User {
   id                  String    @id @default(uuid())
@@ -42,11 +66,17 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  refreshTokens      RefreshToken[]
-  emailVerifications EmailVerification[]
-  passwordResets     PasswordReset[]
-  passwordHistories  PasswordHistory[]
-  auditLogs          AuditLog[]
+  refreshTokens        RefreshToken[]
+  emailVerifications   EmailVerification[]
+  passwordResets       PasswordReset[]
+  passwordHistories    PasswordHistory[]
+  auditLogs            AuditLog[]
+  // RBAC relations
+  userApps             UserApp[]
+  grantedApps          UserApp[]              @relation("GrantedByUser")
+  notificationSubs     AdminNotificationSub[]
+  notifications        Notification[]
+  syncRequestReviews   FeatureSyncRequest[]
 
   @@index([email])
 }
@@ -124,14 +154,156 @@ model AuditLog {
   @@index([createdAt])
 }
 
-model Service {
-  id         String   @id @default(uuid())
-  name       String   @unique
-  secretHash String
-  isActive   Boolean  @default(true)
-  allowedIps String[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+// ─────────────────────────── Multi-App RBAC ──────────────────
+
+model App {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  displayName String
+  description String?
+  secretHash  String
+  status      AppStatus @default(ACTIVE)
+  allowedIps  String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  features      Feature[]
+  roles         AppRole[]
+  userApps      UserApp[]
+  syncRequests  FeatureSyncRequest[]
+  notifSubs     AdminNotificationSub[]
+  notifications Notification[]
 
   @@index([name])
+  @@index([status])
+}
+
+model Feature {
+  id          String   @id @default(uuid())
+  appId       String
+  key         String
+  displayName String
+  description String?
+  createdAt   DateTime @default(now())
+
+  app          App           @relation(fields: [appId], references: [id], onDelete: Cascade)
+  roleFeatures RoleFeature[]
+  userFeatures UserFeature[]
+
+  @@unique([appId, key])
+  @@index([appId])
+}
+
+model FeatureSyncRequest {
+  id         String            @id @default(uuid())
+  appId      String
+  features   Json
+  status     SyncRequestStatus @default(PENDING)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime          @default(now())
+
+  app      App   @relation(fields: [appId], references: [id], onDelete: Cascade)
+  reviewer User? @relation(fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([appId])
+  @@index([status])
+}
+
+model AppRole {
+  id          String   @id @default(uuid())
+  appId       String
+  name        String
+  displayName String
+  description String?
+  isDefault   Boolean  @default(false)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  app      App           @relation(fields: [appId], references: [id], onDelete: Cascade)
+  features RoleFeature[]
+  userApps UserApp[]
+
+  @@unique([appId, name])
+  @@index([appId])
+}
+
+model RoleFeature {
+  roleId    String
+  featureId String
+
+  role    AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, featureId])
+}
+
+model UserApp {
+  id        String   @id @default(uuid())
+  userId    String
+  appId     String
+  roleId    String?
+  isActive  Boolean  @default(true)
+  grantedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  app            App           @relation(fields: [appId], references: [id], onDelete: Cascade)
+  role           AppRole?      @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  granter        User?         @relation("GrantedByUser", fields: [grantedBy], references: [id], onDelete: SetNull)
+  directFeatures UserFeature[]
+
+  @@unique([userId, appId])
+  @@index([userId])
+  @@index([appId])
+}
+
+model UserFeature {
+  userAppId String
+  featureId String
+  granted   Boolean @default(true)
+
+  userApp UserApp @relation(fields: [userAppId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@id([userAppId, featureId])
+}
+
+// ─────────────────────── Notification System ─────────────────
+
+model AdminNotificationSub {
+  id        String                @id @default(uuid())
+  adminId   String
+  eventType NotificationEventType
+  // "GLOBAL" = all apps for this event type; any other value = specific appId
+  scope     String                @default("GLOBAL")
+  appId     String?
+  createdAt DateTime              @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  app   App? @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, eventType, scope])
+  @@index([adminId])
+  @@index([eventType, scope])
+}
+
+model Notification {
+  id        String                @id @default(uuid())
+  adminId   String
+  eventType NotificationEventType
+  appId     String?
+  title     String
+  body      String
+  isRead    Boolean               @default(false)
+  metadata  Json?
+  createdAt DateTime              @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  app   App? @relation(fields: [appId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, isRead])
+  @@index([adminId, createdAt])
 }
