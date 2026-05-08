@@ -1,4 +1,4 @@
-# Authy — Comprehensive Authentication Microservice Documentation
+# Authy — Comprehensive Authentication & Authorization Microservice
 
 > **Version:** 1.0.0 | **Node:** ≥ 20 | **TypeScript:** 5.9 | **PostgreSQL:** 16 | **Redis:** 7
 
@@ -14,44 +14,51 @@
 6. [Environment Variables](#6-environment-variables)
 7. [API Reference](#7-api-reference)
 8. [Authentication & Token Flows](#8-authentication--token-flows)
-9. [Security Features](#9-security-features)
-10. [Message Queue](#10-message-queue)
-11. [Caching Strategy](#11-caching-strategy)
-12. [Audit & Access Logging](#12-audit--access-logging)
-13. [Service-to-Service (S2S) API](#13-service-to-service-s2s-api)
-14. [Error Handling](#14-error-handling)
-15. [Rate Limiting](#15-rate-limiting)
-16. [Setup & Running](#16-setup--running)
-17. [Docker Deployment](#17-docker-deployment)
-18. [Testing](#18-testing)
+9. [ACL / Multi-App RBAC System](#9-acl--multi-app-rbac-system)
+10. [Admin Notification System](#10-admin-notification-system)
+11. [Security Features](#11-security-features)
+12. [Message Queue](#12-message-queue)
+13. [Caching Strategy](#13-caching-strategy)
+14. [Audit & Access Logging](#14-audit--access-logging)
+15. [Service-to-Service (S2S) API](#15-service-to-service-s2s-api)
+16. [Error Handling](#16-error-handling)
+17. [Rate Limiting](#17-rate-limiting)
+18. [Setup & Running](#18-setup--running)
+19. [Docker Deployment](#19-docker-deployment)
+20. [Testing](#20-testing)
 
 ---
 
 ## 1. Overview
 
-**Authy** is a production-grade, self-contained authentication microservice built with Node.js and TypeScript. It exposes a RESTful HTTP API and is designed to be consumed by other microservices (via S2S API) and frontend applications.
+**Authy** is a production-grade, self-contained authentication and authorization microservice built with Node.js and TypeScript. It serves as a central IAM (Identity and Access Management) platform — handling auth flows for users and enforcing fine-grained access control across multiple registered client applications.
 
 ### What it does
 
-| Capability              | Description                                                      |
-| ----------------------- | ---------------------------------------------------------------- |
-| User registration       | Email + password, with strength validation                       |
-| Email verification      | Time-limited tokens delivered via email queue                    |
-| Login / Logout          | JWT access + refresh token pair                                  |
-| Token refresh           | Stateful refresh with rotation (every refresh issues a new pair) |
-| Logout all devices      | Invalidates every active session server-side                     |
-| Forgot / Reset password | Secure token flow with 1-hour expiry                             |
-| Change password         | Verifies current password, enforces history                      |
-| Password history        | Prevents reuse of the last N passwords                           |
-| Account lockout         | Auto-lock after N failed attempts with timed release             |
-| Role-based access       | USER, ADMIN, MODERATOR roles enforced at route level             |
-| Admin management        | List, suspend, activate, delete users, view audit logs           |
-| Audit logging           | Every security event persisted to PostgreSQL                     |
-| Access logging          | Every HTTP request/response logged via Winston                   |
-| Caching                 | Redis-backed user cache + token blacklist                        |
-| Async email             | BullMQ job queue processes emails without blocking the request   |
-| S2S token verification  | Internal API for other microservices to validate JWTs            |
-| Graceful shutdown       | Closes HTTP, DB, Redis, and queue workers cleanly                |
+| Capability              | Description                                                              |
+| ----------------------- | ------------------------------------------------------------------------ |
+| User registration       | Email + password, with strength validation                               |
+| Email verification      | Time-limited tokens delivered via email queue                            |
+| Login / Logout          | JWT access + refresh token pair                                          |
+| Token refresh           | Stateful refresh with rotation (every refresh issues a new pair)         |
+| Logout all devices      | Invalidates every active session server-side                             |
+| Forgot / Reset password | Secure token flow with 1-hour expiry                                     |
+| Change password         | Verifies current password, enforces history                              |
+| Password history        | Prevents reuse of the last N passwords                                   |
+| Account lockout         | Auto-lock after N failed attempts with timed release                     |
+| User profiles           | Self-editable personal fields; admin-only organisational fields          |
+| Role-based access       | USER, ADMIN, MODERATOR roles enforced at route level                     |
+| Multi-app RBAC (ACL)    | Apps, features, roles, and per-user overrides across registered services |
+| Feature sync            | Client apps submit their feature manifest; admins approve or reject      |
+| Permission resolution   | S2S token verify returns app-scoped permissions and stale detection      |
+| Admin management        | List, edit, suspend, force-activate, delete users; view audit logs       |
+| Admin notifications     | Subscription-based in-app + email notifications for ACL events           |
+| Audit logging           | Every security event persisted to PostgreSQL                             |
+| Access logging          | Every HTTP request/response logged via Winston                           |
+| Caching                 | Redis-backed user cache + token blacklist                                |
+| Async email             | BullMQ job queue processes emails without blocking the request           |
+| S2S token verification  | Internal API for other microservices to validate JWTs                    |
+| Graceful shutdown       | Closes HTTP, DB, Redis, and queue workers cleanly                        |
 
 ---
 
@@ -61,28 +68,31 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    HTTP Clients                          │
+│                    HTTP Clients                         │
 │          (Frontend, Mobile, Other Services)             │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTPS
 ┌────────────────────────▼────────────────────────────────┐
-│                   Express App                            │
+│                   Express App                           │
 │   Helmet │ CORS │ Rate Limit │ Request ID │ Access Log  │
 ├─────────────────────────────────────────────────────────┤
-│                      Routes                              │
-│   /api/v1/auth │ /api/v1/admin │ /api/v1/internal │ /health │
+│                      Routes                             │
+│   /api/v1/auth │ /api/v1/admin │ /api/v1/acl            │
+│   /api/v1/notifications │ /api/v1/internal │ /health    │
 ├─────────────────────────────────────────────────────────┤
-│                    Controllers                           │
-│         auth │ admin │ internal │ health               │
+│                    Controllers                          │
+│   auth │ admin │ acl │ notification │ internal │ health │
 ├─────────────────────────────────────────────────────────┤
-│                     Services                             │
+│                     Services                            │
 │   AuthService │ TokenService │ CacheService             │
+│   AclService │ NotificationService                      │
 │   AuditService │ QueueService │ EmailService            │
 ├─────────────────────────────────────────────────────────┤
-│                   Repositories                           │
+│                     Repositories                        │
 │   UserRepository │ TokenRepository │ AuditLogRepository │
+│   AppRepository  │ NotificationRepository               │
 ├────────────┬────────────────────────────────────────────┤
-│ PostgreSQL │         Redis              │  BullMQ Queue  │
+│ PostgreSQL │         Redis             │   BullMQ Queue │
 │ (Prisma)   │  (Cache + Blacklist)      │  (Email Jobs)  │
 └────────────┴────────────────────────────────────────────┘
 ```
@@ -110,8 +120,19 @@ Request
   │    ├─ requireAdmin
   │    └─ Controller → Service → Repository → DB
   │
+  ├─ Route: /api/v1/acl/*
+  │    ├─ authenticate
+  │    ├─ requireAdmin
+  │    └─ AclController → AclService → AppRepository → DB
+  │
+  ├─ Route: /api/v1/notifications/*
+  │    ├─ authenticate
+  │    ├─ requireAdmin
+  │    └─ NotificationController → NotificationService → DB
+  │
   ├─ Route: /api/v1/internal/*
   │    ├─ internalApiKeyGuard (X-Internal-API-Key header)
+  │    ├─ [appSecretGuard] (X-App-Secret header, some routes only)
   │    └─ Controller → Service
   │
   ├─ notFoundHandler (404 for unmatched routes)
@@ -151,7 +172,7 @@ Request
 ```
 authy/
 ├── prisma/
-│   └── schema.prisma           # Database schema (7 models)
+│   └── schema.prisma           # Database schema (14 models)
 ├── src/
 │   ├── app.ts                  # Express app setup (middleware, routes)
 │   ├── index.ts                # Bootstrap: DB/Redis connect, server start, graceful shutdown
@@ -169,7 +190,7 @@ authy/
 │   │   └── index.ts
 │   │
 │   ├── types/
-│   │   ├── auth.types.ts       # User, UserResponse, JWT payloads, request/response shapes
+│   │   ├── auth.types.ts       # User, UserResponse, JWT payloads, AppPermission, request/response shapes
 │   │   └── index.ts
 │   │
 │   ├── utils/
@@ -186,15 +207,19 @@ authy/
 │   │   ├── user.repository.ts         # User CRUD, lockout, password history
 │   │   ├── token.repository.ts        # Refresh, email-verification, password-reset tokens
 │   │   ├── audit-log.repository.ts    # Audit log CRUD with filtering
+│   │   ├── app.repository.ts          # Apps, Features, Roles, UserApps, Sync Requests
+│   │   ├── notification.repository.ts # Notifications and admin subscriptions
 │   │   └── index.ts
 │   │
 │   ├── services/
-│   │   ├── auth.service.ts     # Core business logic (register, login, logout, etc.)
-│   │   ├── token.service.ts    # Token lifecycle (create, rotate, blacklist, revoke)
-│   │   ├── cache.service.ts    # Redis cache: user data, token blacklist, revocation timestamps
-│   │   ├── queue.service.ts    # BullMQ queue setup, job types, enqueue helper
-│   │   ├── email.service.ts    # Nodemailer + HTML templates + queue worker processor
-│   │   ├── audit.service.ts    # Audit log writer (fire-and-forget, never crashes request)
+│   │   ├── auth.service.ts       # Core business logic (register, login, logout, profile, etc.)
+│   │   ├── acl.service.ts        # App RBAC: apps, features, roles, user access, permissions
+│   │   ├── token.service.ts      # Token lifecycle (create, rotate, blacklist, revoke)
+│   │   ├── cache.service.ts      # Redis cache: user data, token blacklist, revocation timestamps
+│   │   ├── queue.service.ts      # BullMQ queue setup, job types, enqueue helper
+│   │   ├── email.service.ts      # Nodemailer + HTML templates + queue worker processor
+│   │   ├── notification.service.ts # Admin notification dispatch, subscriptions, inbox
+│   │   ├── audit.service.ts      # Audit log writer (fire-and-forget, never crashes request)
 │   │   └── index.ts
 │   │
 │   ├── middleware/
@@ -209,13 +234,17 @@ authy/
 │   ├── controllers/
 │   │   ├── auth.controller.ts         # Public + protected auth endpoints
 │   │   ├── admin.controller.ts        # Admin user management + audit logs
-│   │   ├── internal.controller.ts     # S2S verify-token + get-user
+│   │   ├── acl.controller.ts          # App, feature, role, and user-app access management
+│   │   ├── notification.controller.ts # Admin notification inbox + subscriptions
+│   │   ├── internal.controller.ts     # S2S verify-token, get-user, sync-features, permissions
 │   │   ├── health.controller.ts       # Liveness + readiness checks
 │   │   └── index.ts
 │   │
 │   └── routes/
 │       ├── auth.routes.ts
 │       ├── admin.routes.ts
+│       ├── acl.routes.ts
+│       ├── notification.routes.ts
 │       ├── internal.routes.ts
 │       ├── health.routes.ts
 │       └── index.ts
@@ -239,8 +268,7 @@ authy/
 ├── jest.config.ts
 ├── tsconfig.json
 ├── tsconfig.test.json
-├── package.json
-└── DOCS.md
+└── package.json
 ```
 
 ---
@@ -249,59 +277,74 @@ authy/
 
 All models use `uuid()` as the primary key. The database is PostgreSQL 16 via Prisma ORM.
 
+### Enums
+
+| Enum                    | Values                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `UserRole`              | `USER`, `ADMIN`, `MODERATOR`                                                                      |
+| `AppStatus`             | `PENDING`, `ACTIVE`, `SUSPENDED`                                                                  |
+| `SyncRequestStatus`     | `PENDING`, `APPROVED`, `REJECTED`                                                                 |
+| `NotificationEventType` | `APP_REGISTRATION`, `FEATURE_SYNC`, `USER_ACCESS_GRANTED`, `USER_ACCESS_REVOKED`, `ROLE_MODIFIED` |
+
 ### Entity Relationship Diagram
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                          User                            │
-│ id (PK) │ email (UNIQUE) │ passwordHash │ role          │
-│ isVerified │ isActive │ failedLoginAttempts             │
-│ lockedUntil │ lastLoginAt │ lastLoginIp                 │
-│ createdAt │ updatedAt                                   │
-└──────┬───────┬───────────┬──────────────┬───────────────┘
-       │       │           │              │
-       │       │           │              │
-       ▼       ▼           ▼              ▼
-┌──────────┐ ┌───────────────┐ ┌──────────────────┐ ┌───────────────┐
-│Refresh   │ │Email          │ │PasswordReset     │ │Password       │
-│Token     │ │Verification   │ │                  │ │History        │
-│          │ │               │ │                  │ │               │
-│id (PK)   │ │id (PK)        │ │id (PK)           │ │id (PK)        │
-│userId(FK)│ │userId (FK)    │ │userId (FK)       │ │userId (FK)    │
-│tokenHash │ │tokenHash      │ │tokenHash         │ │passwordHash   │
-│userAgent │ │expiresAt      │ │expiresAt         │ │createdAt      │
-│ipAddress │ │isUsed         │ │isUsed            │ │               │
-│expiresAt │ │createdAt      │ │createdAt         │ │               │
-│isRevoked │ │               │ │                  │ │               │
-│createdAt │ │               │ │                  │ │               │
-└──────────┘ └───────────────┘ └──────────────────┘ └───────────────┘
-
-┌────────────────────────────────────────┐   ┌─────────────────────┐
-│              AuditLog                  │   │       Service       │
-│ id (PK) │ userId (FK, nullable)        │   │ id (PK)             │
-│ action │ details (JSON) │ ipAddress   │   │ name (UNIQUE)       │
-│ userAgent │ requestId │ createdAt     │   │ secretHash          │
-│                                        │   │ isActive            │
-│ Indexes: userId, action, createdAt     │   │ allowedIps (array)  │
-└────────────────────────────────────────┘   │ createdAt/updatedAt │
-                                             └─────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                  User                                   │
+│ id │ email (UNIQUE) │ passwordHash │ role │ isVerified │ isActive       │
+│ failedLoginAttempts │ lockedUntil │ lastLoginAt │ lastLoginIp           │
+│ firstName │ lastName │ contact │ address │ dob │ nid (UNIQUE)          │
+│ designation │ department │ position │ identifierNumber (UNIQUE)         │
+│ createdAt │ updatedAt                                                   │
+└───┬──────┬───────┬──────────┬──────────┬──────────┬────────────────────┘
+    │      │       │          │          │          │
+    ▼      ▼       ▼          ▼          ▼          ▼
+┌────────┐ ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌───────┐ ┌──────────────┐
+│Refresh │ │Email    │ │Password  │ │Password  │ │Audit  │ │UserApp       │
+│Token   │ │Verif.   │ │Reset     │ │History   │ │Log    │ │(join table)  │
+└────────┘ └─────────┘ └──────────┘ └──────────┘ └───────┘ └──────┬───────┘
+                                                                    │
+                                                     ┌──────────────┼────────────────┐
+                                                     ▼              ▼                ▼
+┌───────────────────────────────────────────┐  ┌─────────┐  ┌──────────────┐  ┌──────────────┐
+│                    App                    │  │AppRole  │  │UserFeature   │  │AdminNotif    │
+│ id │ name (UNIQUE) │ displayName          │  │         │  │(direct ovr.) │  │Sub           │
+│ description │ secretHash │ status         │  │ version │  └──────────────┘  └──────────────┘
+│ allowedIps[] │ createdAt │ updatedAt      │  └────┬────┘
+└───┬───────────────────────────────────────┘       │
+    │                                               │
+    ├──── Feature[] ──────── RoleFeature[] ─────────┘
+    ├──── AppRole[]
+    ├──── UserApp[]
+    ├──── FeatureSyncRequest[]
+    ├──── AdminNotificationSub[]
+    └──── Notification[]
 ```
 
 ### Model Details
 
 **User**
-| Field | Type | Description |
+| Field | Type | Notes |
 |---|---|---|
 | `id` | uuid | Primary key |
 | `email` | string (unique) | Normalized to lowercase |
 | `passwordHash` | string | bcrypt hash |
 | `role` | enum | USER \| ADMIN \| MODERATOR |
 | `isVerified` | boolean | Email verified? |
-| `isActive` | boolean | Account active? (soft ban = false) |
+| `isActive` | boolean | Account active? (`false` = soft ban or unverified) |
 | `failedLoginAttempts` | int | Resets on success or lockout |
 | `lockedUntil` | DateTime? | Null when not locked |
 | `lastLoginAt` | DateTime? | Updated on login |
 | `lastLoginIp` | string? | Client IP on last login |
+| `firstName`, `lastName` | string? | User-editable profile |
+| `contact` | string? | Phone / contact info |
+| `address` | string? | Physical address |
+| `dob` | DateTime? | Date of birth |
+| `nid` | string? (unique) | National ID — must be 20 digits |
+| `designation` | string? | Job title — admin-only |
+| `department` | string? | Department — admin-only |
+| `position` | string? | Position/level — admin-only |
+| `identifierNumber` | string? (unique) | Employee/student ID — admin-only |
 
 **RefreshToken** — Stored as SHA-256 hash, not plaintext
 | Field | Type | Description |
@@ -326,6 +369,76 @@ All models use `uuid()` as the primary key. The database is PostgreSQL 16 via Pr
 
 - Last N hashes stored (N = `PASSWORD_HISTORY_LIMIT`, default 5)
 - Oldest entries pruned automatically on each password change
+
+**App**
+| Field | Type | Notes |
+|---|---|---|
+| `id` | uuid | PK |
+| `name` | string (unique) | Slug (lowercase, hyphens) — used in API calls |
+| `displayName` | string | Human-readable name |
+| `description` | string? | Optional description |
+| `secretHash` | string | SHA-256 of the app secret (never returned) |
+| `status` | enum | ACTIVE \| PENDING \| SUSPENDED |
+| `allowedIps` | string[] | Optional IP allowlist |
+
+**Feature** — Scoped to an App
+| Field | Notes |
+|---|---|
+| `appId` | FK to App |
+| `key` | Unique within the app (`appId + key` unique constraint) |
+| `displayName` | Human label |
+
+**FeatureSyncRequest** — Created when a client app submits its feature manifest
+| Field | Notes |
+|---|---|
+| `appId` | FK to App |
+| `features` | JSON array of `{ key, displayName, description? }` |
+| `status` | PENDING → APPROVED or REJECTED |
+| `reviewedBy` | FK to User (admin who acted) |
+| `reviewedAt` | DateTime of review |
+
+**AppRole** — A named permission bundle within an app
+| Field | Notes |
+|---|---|
+| `appId` | FK to App |
+| `name` | Unique within app |
+| `isDefault` | Assigned automatically to new users of this app |
+| `version` | Int, incremented on every update or feature set change |
+
+**RoleFeature** — Join table between AppRole and Feature (composite PK)
+
+**UserApp** — A user's membership in an app
+| Field | Notes |
+|---|---|
+| `userId`, `appId` | Unique pair |
+| `roleId` | Optional FK to AppRole |
+| `isActive` | Access enabled? |
+| `grantedBy` | FK to User (admin who assigned) |
+
+**UserFeature** — Per-user feature overrides (on top of role)
+| Field | Notes |
+|---|---|
+| `userAppId` | FK to UserApp |
+| `featureId` | FK to Feature |
+| `granted` | `true` = explicitly granted, `false` = explicitly revoked |
+
+**AdminNotificationSub** — An admin's subscription to an event type
+| Field | Notes |
+|---|---|
+| `adminId` | FK to User |
+| `eventType` | One of `NotificationEventType` enum values |
+| `scope` | `"GLOBAL"` = all apps; any other value = specific appId |
+| `appId` | FK to App (nullable, set when scope is app-specific) |
+
+**Notification** — An admin's inbox item
+| Field | Notes |
+|---|---|
+| `adminId` | FK to User |
+| `eventType` | Event that triggered this |
+| `appId` | FK to App (nullable) |
+| `title`, `body` | Display content |
+| `isRead` | Boolean, default false |
+| `metadata` | JSON (e.g., `{ requestId, featureCount }`) |
 
 ---
 
@@ -427,7 +540,7 @@ Register a new user. A verification email is sent asynchronously.
       "email": "user@example.com",
       "role": "USER",
       "isVerified": false,
-      "isActive": true,
+      "isActive": false,
       "lastLoginAt": null,
       "createdAt": "2026-05-02T12:00:00.000Z"
     },
@@ -512,6 +625,8 @@ Verify an email address using the token from the verification email. The `token`
 { "success": true, "data": { "message": "Email verified successfully" } }
 ```
 
+**Side effect:** Welcome email queued.
+
 **Errors:** `401` invalid/expired/used token
 
 ---
@@ -586,12 +701,52 @@ Reset password using the token from the password-reset email (1-hour expiry).
 {
   "success": true,
   "data": {
-    "user": { "id": "uuid", "email": "...", "role": "USER", "isVerified": true, ... }
+    "user": {
+      "id": "uuid",
+      "email": "...",
+      "role": "USER",
+      "isVerified": true,
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "contact": "+1 555 000 0000",
+      "address": "123 Main St",
+      "dob": "1990-01-15T00:00:00.000Z",
+      "nid": "12345678901234567890",
+      "designation": "Senior Engineer",
+      "department": "Engineering",
+      "position": "Team Lead",
+      "identifierNumber": "EMP-0042"
+    }
   }
 }
 ```
 
 Result is cached in Redis for 5 minutes.
+
+---
+
+#### `PATCH /me`
+
+Update the authenticated user's own profile fields.
+
+**Request body** (all fields optional):
+
+```json
+{
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "contact": "+1 555 000 0000",
+  "address": "123 Main St",
+  "dob": "1990-01-15",
+  "nid": "12345678901234567890"
+}
+```
+
+**Validation:** `nid` must be exactly 20 digits if provided. All strings are trimmed.
+
+**Response `200`:** Updated user object.
+
+**Note:** Org fields (`designation`, `department`, `position`, `identifierNumber`) cannot be set by users — only admins can update those.
 
 ---
 
@@ -659,7 +814,16 @@ Base path: `/api/v1/admin`
 
 List all users with pagination and optional filters.
 
-**Query params:** `page` (default 1), `limit` (default 20, max 100), `role` (USER|ADMIN|MODERATOR), `isActive` (true|false)
+**Query params:**
+
+| Param        | Type    | Description                               |
+| ------------ | ------- | ----------------------------------------- |
+| `page`       | int     | Default `1`                               |
+| `limit`      | int     | Default `20`, max `100`                   |
+| `role`       | string  | Filter by `USER`, `ADMIN`, or `MODERATOR` |
+| `isActive`   | boolean | Filter by active status                   |
+| `isVerified` | boolean | Filter by verification status             |
+| `search`     | string  | Search by name or email (partial match)   |
 
 **Response `200`:**
 
@@ -680,10 +844,32 @@ List all users with pagination and optional filters.
 
 #### `GET /users/:id`
 
-Get a single user by UUID.
+Get a single user by UUID, including all profile and org fields.
 
 **Response `200`:** `{ "data": { "user": { ... } } }`  
 **Errors:** `404` not found
+
+---
+
+#### `PATCH /users/:id`
+
+Update a user's role and/or organisational fields.
+
+**Request body** (all fields optional):
+
+```json
+{
+  "role": "MODERATOR",
+  "designation": "Senior Engineer",
+  "department": "Engineering",
+  "position": "Team Lead",
+  "identifierNumber": "EMP-0042"
+}
+```
+
+**Response `200`:** Updated user object.
+
+**Note:** Profile fields (`firstName`, `lastName`, etc.) are user-managed via `PATCH /me`. Admins use this endpoint only for role and org-level fields.
 
 ---
 
@@ -698,9 +884,25 @@ Deactivate a user account (`isActive = false`). Revokes all active sessions.
 
 #### `PUT /users/:id/activate`
 
-Re-activate a suspended account.
+Re-activate a suspended (but already verified) account.
 
 **Response `200`:** Updated user object
+
+---
+
+#### `PUT /users/:id/force-activate`
+
+Bypass email verification for a user who has not yet verified their email. The admin must provide their own password as confirmation.
+
+**Request body:**
+
+```json
+{ "adminPassword": "Admin#Pass1" }
+```
+
+**Response `200`:** Updated user object (now `isVerified = true`, `isActive = true`).
+
+**Errors:** `401` wrong admin password | `400` user is already verified
 
 ---
 
@@ -731,10 +933,212 @@ View audit logs for a specific user.
 
 ---
 
-### 7.4 Internal / S2S Endpoints
+### 7.4 ACL / RBAC Endpoints
+
+Base path: `/api/v1/acl`  
+**Requires:** `Authorization: Bearer <adminAccessToken>` (role = ADMIN)
+
+---
+
+#### Apps
+
+| Method  | Path                             | Description                                                |
+| ------- | -------------------------------- | ---------------------------------------------------------- |
+| `GET`   | `/apps`                          | List all registered apps (paginated, filterable by status) |
+| `POST`  | `/apps`                          | Register a new app — returns secret **once**               |
+| `GET`   | `/apps/:appId`                   | Get app details                                            |
+| `PATCH` | `/apps/:appId`                   | Update display name, description, or allowed IPs           |
+| `PUT`   | `/apps/:appId/suspend`           | Suspend an app                                             |
+| `PUT`   | `/apps/:appId/reactivate`        | Re-activate a suspended app                                |
+| `POST`  | `/apps/:appId/regenerate-secret` | Rotate the app secret — new secret returned once           |
+
+**Register app — Request body:**
+
+```json
+{
+  "name": "finance-app",
+  "displayName": "Finance Portal",
+  "description": "Internal finance management system",
+  "allowedIps": ["10.0.0.0/8"]
+}
+```
+
+**Register app — Response `201`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "app": { "id": "...", "name": "finance-app", "displayName": "Finance Portal", "status": "ACTIVE", ... },
+    "secret": "<raw-64-char-hex>"
+  }
+}
+```
+
+> The `secret` is shown exactly once. Store it in the client service's environment variables. Authy only stores its SHA-256 hash.
+
+---
+
+#### Features (Admin-Direct)
+
+| Method   | Path                    | Description                                |
+| -------- | ----------------------- | ------------------------------------------ |
+| `GET`    | `/apps/:appId/features` | List all features for an app               |
+| `POST`   | `/apps/:appId/features` | Add a feature to an app                    |
+| `PATCH`  | `/features/:featureId`  | Update feature display name or description |
+| `DELETE` | `/features/:featureId`  | Remove a feature                           |
+
+**Add feature — Request body:**
+
+```json
+{ "key": "approve_transaction", "displayName": "Approve Transaction", "description": "Can approve pending transactions" }
+```
+
+`key` must be unique within the app and match `/^[a-z0-9_]+$/`.
+
+---
+
+#### Feature Sync Requests
+
+Client apps self-register their features by calling the internal API (see §7.6). Admins then review the queue here.
+
+| Method | Path                                | Description                                        |
+| ------ | ----------------------------------- | -------------------------------------------------- |
+| `GET`  | `/sync-requests`                    | List all sync requests (filterable by app, status) |
+| `PUT`  | `/sync-requests/:requestId/approve` | Approve — upserts all submitted features           |
+| `PUT`  | `/sync-requests/:requestId/reject`  | Reject the request                                 |
+
+---
+
+#### Roles
+
+| Method   | Path                      | Description                               |
+| -------- | ------------------------- | ----------------------------------------- |
+| `GET`    | `/apps/:appId/roles`      | List roles for an app                     |
+| `POST`   | `/apps/:appId/roles`      | Create a role                             |
+| `PATCH`  | `/roles/:roleId`          | Update role name/description/default flag |
+| `DELETE` | `/roles/:roleId`          | Delete a role                             |
+| `PUT`    | `/roles/:roleId/features` | Replace the feature set for a role        |
+
+**Create role — Request body:**
+
+```json
+{ "name": "manager", "displayName": "Manager", "description": "Can approve and export", "isDefault": false }
+```
+
+**Set role features — Request body:**
+
+```json
+{ "featureIds": ["uuid-1", "uuid-2"] }
+```
+
+> Updating a role (metadata or feature set) bumps its `version` and immediately invalidates all sessions of users assigned to that role.
+
+---
+
+#### User-App Access
+
+| Method   | Path                                  | Description                                   |
+| -------- | ------------------------------------- | --------------------------------------------- |
+| `GET`    | `/apps/:appId/users`                  | List users assigned to an app                 |
+| `POST`   | `/apps/:appId/users`                  | Assign a user to an app with an optional role |
+| `PATCH`  | `/apps/:appId/users/:userId`          | Change a user's role or active status         |
+| `DELETE` | `/apps/:appId/users/:userId`          | Remove a user from an app                     |
+| `PUT`    | `/apps/:appId/users/:userId/features` | Set per-user feature overrides                |
+
+**Assign user — Request body:**
+
+```json
+{ "userId": "uuid", "roleId": "uuid-optional" }
+```
+
+**Set per-user feature overrides — Request body:**
+
+```json
+{
+  "overrides": [
+    { "featureId": "uuid-1", "granted": true },
+    { "featureId": "uuid-2", "granted": false }
+  ]
+}
+```
+
+> Any change to a user's app access (role change, active toggle, feature overrides) immediately invalidates their sessions so they pick up new permissions on next login.
+
+---
+
+### 7.5 Notification Endpoints
+
+Base path: `/api/v1/notifications`  
+**Requires:** `Authorization: Bearer <adminAccessToken>` (role = ADMIN)
+
+---
+
+#### Inbox
+
+| Method | Path             | Description                                               |
+| ------ | ---------------- | --------------------------------------------------------- |
+| `GET`  | `/`              | List notifications (paginated; `?unreadOnly=true` filter) |
+| `GET`  | `/unread-count`  | Get count of unread notifications                         |
+| `PUT`  | `/:id/read`      | Mark a single notification as read                        |
+| `PUT`  | `/mark-all-read` | Mark all notifications as read                            |
+
+---
+
+#### Subscriptions
+
+| Method   | Path                  | Description                                   |
+| -------- | --------------------- | --------------------------------------------- |
+| `GET`    | `/subscriptions`      | List current admin's subscriptions            |
+| `POST`   | `/subscriptions`      | Subscribe to an event type                    |
+| `POST`   | `/subscriptions/bulk` | Subscribe multiple admins to an event at once |
+| `DELETE` | `/subscriptions/:id`  | Unsubscribe                                   |
+
+**Create subscription — Request body:**
+
+```json
+{
+  "eventType": "FEATURE_SYNC",
+  "appId": "uuid-optional"
+}
+```
+
+If `appId` is omitted, scope is `GLOBAL` (all apps).
+
+**Bulk create — Request body:**
+
+```json
+{
+  "adminIds": ["uuid-1", "uuid-2"],
+  "eventType": "APP_REGISTRATION"
+}
+```
+
+---
+
+#### Direct Send
+
+| Method | Path    | Description                                    |
+| ------ | ------- | ---------------------------------------------- |
+| `POST` | `/send` | Send a one-off notification to specific admins |
+
+**Request body:**
+
+```json
+{
+  "adminIds": ["uuid-1", "uuid-2"],
+  "title": "Action required",
+  "body": "Please review the pending sync requests."
+}
+```
+
+---
+
+### 7.6 Internal / S2S Endpoints
 
 Base path: `/api/v1/internal`  
-**Auth:** `X-Internal-API-Key: <INTERNAL_API_KEY>` header
+**Auth (all routes):** `X-Internal-API-Key: <INTERNAL_API_KEY>` header  
+**App-secret routes:** additionally require `X-App-Secret: <raw-app-secret>` header
 
 These endpoints are meant for other microservices in your infrastructure, **never exposed to clients**.
 
@@ -750,7 +1154,7 @@ Verify an access token and return the associated user. Checks the token blacklis
 { "token": "eyJ..." }
 ```
 
-**Response `200`:**
+**Basic response `200`:**
 
 ```json
 {
@@ -764,18 +1168,95 @@ Verify an access token and return the associated user. Checks the token blacklis
 
 If the token is invalid/expired/revoked: `{ "valid": false, "user": null }`
 
+**With `X-App-Secret` header (permission-aware response):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "valid": true,
+    "user": { ... },
+    "appPermission": {
+      "roleId": "uuid",
+      "roleName": "manager",
+      "roleVersion": 3,
+      "features": ["approve_transaction", "view_transactions"]
+    },
+    "permissionsStale": false
+  }
+}
+```
+
+`permissionsStale: true` means the user's JWT was issued against an older role version — the service should prompt the client to re-login for fresh permissions.
+
 ---
 
 #### `GET /users/:id`
 
-Fetch a user by ID (for other services that need user details without going through the user-facing API).
+Fetch a user by ID for other services that need user details.
 
 **Response `200`:** `{ "data": { "user": { ... } } }`  
 **Errors:** `404`
 
 ---
 
-### 7.5 Health Endpoints
+#### `POST /sync-features` _(requires `X-App-Secret`)_
+
+A client app self-registers its feature manifest. Creates a `FeatureSyncRequest` with status `PENDING`. Triggers a `FEATURE_SYNC` notification to subscribed admins.
+
+**Request body:**
+
+```json
+{
+  "features": [
+    { "key": "view_transactions", "displayName": "View Transactions" },
+    { "key": "approve_transaction", "displayName": "Approve Transaction", "description": "..." }
+  ]
+}
+```
+
+**Response `201`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Feature sync submitted for admin review",
+    "requestId": "uuid",
+    "appId": "uuid",
+    "featureCount": 2
+  }
+}
+```
+
+---
+
+#### `GET /users/:userId/permissions` _(requires `X-App-Secret`)_
+
+Resolve a user's full permission set for the calling app.
+
+**Response `200`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "userId": "uuid",
+    "appId": "uuid",
+    "hasAccess": true,
+    "permission": {
+      "roleId": "uuid",
+      "roleName": "manager",
+      "roleVersion": 3,
+      "features": ["view_transactions", "approve_transaction"]
+    }
+  }
+}
+```
+
+---
+
+### 7.7 Health Endpoints
 
 Base path: `/health`  
 **No authentication required.**
@@ -851,7 +1332,7 @@ Client                       Authy
   │                            │ find EmailVerification in DB
   │                            │ check: not used, not expired
   │                            │ mark token as used
-  │                            │ set user.isVerified = true
+  │                            │ set user.isVerified = true, isActive = true
   │                            │ invalidate user cache
   │                            │── enqueueEmail(WELCOME) ──▶ Queue
   │◀── 200 { message } ────────│
@@ -885,7 +1366,7 @@ Client                              Authy                       Redis
 Client                                Authy                          DB           Redis
   │                                     │                             │             │
   │── POST /refresh { refreshToken } -─▶│                             │             │
-  │                                     │ verifyRefreshToken (JWT).   │             │
+  │                                     │ verifyRefreshToken (JWT)    │             │
   │                                     │ hash token → SHA-256        │             │
   │                                     │── findRefreshToken ────────▶│             │
   │                                     │ check: not revoked          │             │
@@ -958,16 +1439,123 @@ Client                               Authy
 
 ---
 
-## 9. Security Features
+## 9. ACL / Multi-App RBAC System
 
-### 9.1 Password Security
+Authy acts as a central permission authority for registered client applications. The model is **Apps → Features → Roles → UserApp memberships → per-user overrides**.
+
+### 9.1 Permission Model
+
+```
+App
+├── Feature[] (e.g. view_transactions, approve_transaction)
+├── AppRole[]
+│    └── RoleFeature[] → Feature[]   (which features this role grants)
+└── UserApp[]
+     ├── user     → User
+     ├── role     → AppRole (optional)
+     └── UserFeature[] (per-user overrides, grant or revoke individual features)
+```
+
+A user's effective feature set for an app = **role features** + **direct grants** − **direct revocations**.
+
+### 9.2 Feature Sync Flow
+
+Client apps typically self-register their features at startup without needing manual admin setup:
+
+```
+Client App                          Authy                      Admin (UI)
+  │                                   │                            │
+  │── POST /internal/sync-features ──▶│                            │
+  │   X-Internal-API-Key: ...         │ validate app secret        │
+  │   X-App-Secret: <raw-secret>      │ create FeatureSyncRequest  │
+  │                                   │── notify subscribed ──────▶│
+  │◀── 201 { requestId, ... } ────────│                            │
+  │                                   │                            │ (reviews queue)
+  │                                   │◀── PUT /approve ───────────│
+  │                                   │ upsertFeature() × N        │
+  │                                   │ mark request APPROVED      │
+```
+
+### 9.3 Role Version & Stale Permission Detection
+
+When an admin changes a role's features or metadata, the role's `version` is incremented. All users with that role have their sessions immediately invalidated (via `revokeAllUserRefreshTokens` + `setUserRevocationTime`).
+
+JWT access tokens embed a snapshot of the user's app permissions at login time, including `roleVersion`. When a service calls `POST /internal/verify-token` with its app secret, Authy compares the JWT's cached `roleVersion` against the current DB value:
+
+```
+permissionsStale = (jwt.appPermissions[appId].roleVersion !== currentRole.version)
+```
+
+If `true`, the service should signal the client to re-authenticate. This avoids the need to validate permissions on every request by hitting the DB — the stale flag is the invalidation signal.
+
+### 9.4 Session Invalidation on Access Changes
+
+Any of these actions triggers immediate session invalidation for the affected user(s):
+
+| Action                            | Scope                                     |
+| --------------------------------- | ----------------------------------------- |
+| Role feature set updated          | All users with that role                  |
+| Role definition updated           | All users with that role                  |
+| Role deleted                      | All users with that role                  |
+| User's app role changed           | That user                                 |
+| User's per-user overrides updated | That user                                 |
+| User removed from app             | That user                                 |
+| App suspended/reactivated         | Not invalidated (app-level, not per-user) |
+
+Session invalidation = `revokeAllUserRefreshTokens` + `setUserRevocationTime` + `invalidateUser cache`.
+
+---
+
+## 10. Admin Notification System
+
+### 10.1 Event Types
+
+| Event Type            | Triggered by                                 |
+| --------------------- | -------------------------------------------- |
+| `APP_REGISTRATION`    | A new app is registered via `POST /acl/apps` |
+| `FEATURE_SYNC`        | A client app submits a feature sync request  |
+| `USER_ACCESS_GRANTED` | A user is assigned to an app                 |
+| `USER_ACCESS_REVOKED` | A user is removed from an app                |
+| `ROLE_MODIFIED`       | A role's definition or features are updated  |
+
+### 10.2 Dispatch Flow
+
+```
+AclService / AuthService
+  │
+  │── notificationService.dispatch(eventType, appId, title, body, metadata)
+        │
+        │ find all adminIds subscribed to (eventType, appId or GLOBAL)
+        │
+        ├── notificationRepository.createMany(notifications)   → in-app inbox
+        │
+        └── for each adminId:
+              enqueueEmail(SEND_ADMIN_NOTIFICATION, adminEmail, title, body)
+```
+
+The dispatch is always wrapped in `try/catch` — a notification failure never propagates to the user-facing request.
+
+### 10.3 Subscription Scoping
+
+A subscription record has three identifying fields: `adminId`, `eventType`, `scope`.
+
+- `scope = "GLOBAL"` → admin receives this event type for **all apps**
+- `scope = "<appId>"` → admin receives this event type only for that specific app
+
+Dispatch queries for admins subscribed to `(eventType, "GLOBAL")` OR `(eventType, appId)`.
+
+---
+
+## 11. Security Features
+
+### 11.1 Password Security
 
 - **Hashing:** bcrypt with configurable rounds (default 12; rounds=4 in tests for speed)
 - **Strength requirements:** ≥ 8 chars, uppercase, lowercase, digit, special char
 - **History enforcement:** Last N passwords stored as bcrypt hashes; new password checked against all of them
 - **Never logged:** Passwords sanitized from all log output via Winston format (`***REDACTED***`)
 
-### 9.2 JWT Security
+### 11.2 JWT Security
 
 | Property              | Value                                                                          |
 | --------------------- | ------------------------------------------------------------------------------ |
@@ -980,7 +1568,7 @@ Client                               Authy
 | Logout blacklist      | JTI → Redis with TTL = remaining access token lifetime                         |
 | Logout-all            | Per-user revocation timestamp in Redis; any token issued before it is rejected |
 
-### 9.3 Account Lockout
+### 11.3 Account Lockout
 
 - After `MAX_LOGIN_ATTEMPTS` (default 5) consecutive failed logins, the account is locked
 - `lockedUntil` is set to `now + LOCKOUT_DURATION_MINUTES`
@@ -988,7 +1576,7 @@ Client                               Authy
 - Lockout resets automatically when `lockedUntil` expires
 - A successful login resets `failedLoginAttempts` to 0
 
-### 9.4 HTTP Security Headers (Helmet)
+### 11.4 HTTP Security Headers (Helmet)
 
 Helmet sets the following headers on every response:
 
@@ -1001,18 +1589,18 @@ Helmet sets the following headers on every response:
 - `Referrer-Policy`
 - `X-XSS-Protection`
 
-### 9.5 CORS
+### 11.5 CORS
 
 - In development: all origins allowed (easy local testing)
 - In production: only `FRONTEND_URL` is allowed
 - Credentials (`Authorization` header) are explicitly enabled
 - Exposed headers: `X-Request-ID`
 
-### 9.6 Request Body Limits
+### 11.6 Request Body Limits
 
 Express body parser is configured with `limit: "10kb"` to prevent payload flooding attacks.
 
-### 9.7 Sensitive Data in Logs
+### 11.7 Sensitive Data in Logs
 
 Winston format sanitizes the following fields before any log output:
 
@@ -1023,29 +1611,34 @@ Winston format sanitizes the following fields before any log output:
 
 Emails are partially masked (`u***@example.com`) and IPs are masked (`192.168.***.***`).
 
-### 9.8 Enumeration Protection
+### 11.8 Enumeration Protection
 
 The following endpoints always return the same success response regardless of whether the email exists:
 
 - `POST /forgot-password`
 - `POST /resend-verification`
 
-This prevents attackers from discovering registered email addresses.
+### 11.9 App Secret Security
+
+- App secrets are generated as 32-byte cryptographically random hex strings
+- Only the SHA-256 hash is stored in the database — the raw secret is shown once at registration and never again
+- Admins can rotate secrets via `POST /acl/apps/:appId/regenerate-secret`
 
 ---
 
-## 10. Message Queue
+## 12. Message Queue
 
 Authy uses **BullMQ** (Redis-backed) for all email delivery. This decouples the HTTP response time from SMTP latency.
 
 ### Queue: `authy:email`
 
-| Job Type                      | Trigger                           | Template                           |
-| ----------------------------- | --------------------------------- | ---------------------------------- |
-| `send-verification-email`     | Registration, resend-verification | Inline HTML with verification link |
-| `send-password-reset-email`   | Forgot password                   | Inline HTML with reset link        |
-| `send-welcome-email`          | Email verified                    | Inline HTML welcome message        |
-| `send-password-changed-email` | Reset/change password             | Inline HTML security notification  |
+| Job Type                      | Trigger                                         | Template                           |
+| ----------------------------- | ----------------------------------------------- | ---------------------------------- |
+| `send-verification-email`     | Registration, resend-verification               | Inline HTML with verification link |
+| `send-password-reset-email`   | Forgot password                                 | Inline HTML with reset link        |
+| `send-welcome-email`          | Email verified                                  | Inline HTML welcome message        |
+| `send-password-changed-email` | Reset/change password                           | Inline HTML security notification  |
+| `send-admin-notification`     | Notification dispatch (ACL events, direct send) | Inline HTML admin alert            |
 
 ### Job Configuration
 
@@ -1074,7 +1667,7 @@ On SIGTERM/SIGINT: `closeQueues()` closes the worker (drains active jobs) then c
 
 ---
 
-## 11. Caching Strategy
+## 13. Caching Strategy
 
 All caching uses the main Redis client. Keys are namespaced with `authy:` prefix.
 
@@ -1088,12 +1681,14 @@ All caching uses the main Redis client. Keys are namespaced with `authy:` prefix
 
 ### Cache Invalidation
 
-| Event                 | Invalidated Keys                                                   |
-| --------------------- | ------------------------------------------------------------------ |
-| Logout                | `authy:bl:access:{jti}` added                                      |
-| Logout all            | `authy:revoke_before:{userId}` set + `authy:user:{userId}` deleted |
-| Suspend/activate user | `authy:user:{userId}` deleted + revocation timestamp set           |
-| Password reset/change | `authy:user:{userId}` deleted + revocation timestamp set           |
+| Event                   | Invalidated Keys                                                   |
+| ----------------------- | ------------------------------------------------------------------ |
+| Logout                  | `authy:bl:access:{jti}` added                                      |
+| Logout all              | `authy:revoke_before:{userId}` set + `authy:user:{userId}` deleted |
+| Suspend/activate user   | `authy:user:{userId}` deleted + revocation timestamp set           |
+| Password reset/change   | `authy:user:{userId}` deleted + revocation timestamp set           |
+| Role updated/deleted    | All users with that role → sessions invalidated                    |
+| User-app access changed | That user → sessions invalidated                                   |
 
 ### Cache Failure Behavior
 
@@ -1101,37 +1696,56 @@ All Redis cache operations are wrapped in `try/catch`. Cache failures log a warn
 
 ---
 
-## 12. Audit & Access Logging
+## 14. Audit & Access Logging
 
-### 12.1 Audit Logs (Database)
+### 14.1 Audit Logs (Database)
 
 Every security-relevant action is persisted to the `AuditLog` table.
 
 **Captured Actions:**
 
-| Action                     | Trigger                             |
-| -------------------------- | ----------------------------------- |
-| `USER_REGISTERED`          | Successful registration             |
-| `LOGIN_SUCCESS`            | Successful login                    |
-| `LOGIN_FAILED`             | Wrong password or non-existent user |
-| `LOGOUT`                   | POST /logout                        |
-| `LOGOUT_ALL`               | POST /logout-all                    |
-| `TOKEN_REFRESHED`          | POST /refresh                       |
-| `EMAIL_VERIFICATION_SENT`  | Resend verification                 |
-| `EMAIL_VERIFIED`           | GET /verify-email                   |
-| `PASSWORD_RESET_REQUESTED` | POST /forgot-password               |
-| `PASSWORD_RESET_COMPLETED` | POST /reset-password                |
-| `PASSWORD_CHANGED`         | PUT /change-password                |
-| `ACCOUNT_LOCKED`           | Max login attempts exceeded         |
-| `ACCOUNT_UNLOCKED`         | Admin activates user                |
-| `ACCOUNT_DEACTIVATED`      | Admin suspends user                 |
-| `ACCOUNT_DELETED`          | Admin deletes user                  |
+| Action                     | Trigger                                |
+| -------------------------- | -------------------------------------- |
+| `USER_REGISTERED`          | Successful registration                |
+| `LOGIN_SUCCESS`            | Successful login                       |
+| `LOGIN_FAILED`             | Wrong password or non-existent user    |
+| `LOGOUT`                   | POST /logout                           |
+| `LOGOUT_ALL`               | POST /logout-all                       |
+| `TOKEN_REFRESHED`          | POST /refresh                          |
+| `EMAIL_VERIFICATION_SENT`  | Resend verification                    |
+| `EMAIL_VERIFIED`           | GET /verify-email                      |
+| `PASSWORD_RESET_REQUESTED` | POST /forgot-password                  |
+| `PASSWORD_RESET_COMPLETED` | POST /reset-password                   |
+| `PASSWORD_CHANGED`         | PUT /change-password                   |
+| `ACCOUNT_LOCKED`           | Max login attempts exceeded            |
+| `ACCOUNT_UNLOCKED`         | Admin activates user                   |
+| `ACCOUNT_DEACTIVATED`      | Admin suspends user                    |
+| `ACCOUNT_DELETED`          | Admin deletes user                     |
+| `FORCE_ACTIVATED`          | Admin force-activates unverified user  |
+| `APP_CREATED`              | Admin registers a new app              |
+| `APP_UPDATED`              | Admin updates app metadata             |
+| `APP_SUSPENDED`            | Admin suspends an app                  |
+| `APP_REACTIVATED`          | Admin reactivates an app               |
+| `APP_SECRET_REGENERATED`   | Admin rotates an app secret            |
+| `FEATURE_ADDED`            | Admin adds a feature directly          |
+| `FEATURE_UPDATED`          | Admin updates a feature                |
+| `FEATURE_REMOVED`          | Admin removes a feature                |
+| `SYNC_REQUEST_APPROVED`    | Admin approves a feature sync request  |
+| `SYNC_REQUEST_REJECTED`    | Admin rejects a feature sync request   |
+| `ROLE_CREATED`             | Admin creates a role                   |
+| `ROLE_UPDATED`             | Admin updates a role                   |
+| `ROLE_DELETED`             | Admin deletes a role                   |
+| `ROLE_FEATURES_SET`        | Admin sets a role's feature list       |
+| `USER_APP_ASSIGNED`        | Admin assigns a user to an app         |
+| `USER_APP_UPDATED`         | Admin changes a user's app access/role |
+| `USER_APP_REMOVED`         | Admin removes a user from an app       |
+| `USER_FEATURES_SET`        | Admin sets per-user feature overrides  |
 
 Each entry captures: `userId`, `action`, `details` (JSON), `ipAddress`, `userAgent`, `requestId`.
 
 **Design principle:** `auditService.log()` is fire-and-forget. If the DB write fails, it logs an error but **never propagates the exception** — the user-facing request always completes.
 
-### 12.2 Access Logs (File)
+### 14.2 Access Logs (File)
 
 Every HTTP request/response is logged via Winston's access-log middleware:
 
@@ -1153,9 +1767,9 @@ Log level varies by status code:
 
 ---
 
-## 13. Service-to-Service (S2S) API
+## 15. Service-to-Service (S2S) API
 
-Other microservices can validate user tokens without a shared secret by calling Authy's internal API.
+Other microservices can validate user tokens and query permissions without sharing secrets.
 
 ### Authentication
 
@@ -1165,12 +1779,17 @@ Every request to `/api/v1/internal/*` must include:
 X-Internal-API-Key: <INTERNAL_API_KEY>
 ```
 
-Set this in the calling service's environment. Generate with `openssl rand -hex 32`.
+For app-specific routes (`/sync-features`, `/users/:userId/permissions`), also include:
 
-### Typical Usage (in another microservice)
+```
+X-App-Secret: <raw-app-secret>
+```
+
+Generate the API key with `openssl rand -hex 32`.
+
+### Typical Usage — Basic Token Verify
 
 ```ts
-// Called on every authenticated request to verify the token
 const response = await fetch("http://auth-service:3031/api/v1/internal/verify-token", {
   method: "POST",
   headers: {
@@ -1186,9 +1805,53 @@ if (!data.valid) return res.status(401).json({ error: "Unauthorized" });
 req.user = data.user; // { id, email, role, isVerified, ... }
 ```
 
+### Typical Usage — Permission-Aware Verify (Recommended)
+
+```ts
+const response = await fetch("http://auth-service:3031/api/v1/internal/verify-token", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Internal-API-Key": process.env.INTERNAL_API_KEY,
+    "X-App-Secret": process.env.APP_SECRET,
+  },
+  body: JSON.stringify({ token: req.headers.authorization?.slice(7) }),
+});
+
+const { data } = await response.json();
+if (!data.valid) return res.status(401).json({ error: "Unauthorized" });
+if (data.permissionsStale) {
+  return res.status(401).json({ error: "Token outdated — please re-login" });
+}
+
+const hasFeature = data.appPermission?.features?.includes("approve_transaction");
+if (!hasFeature) return res.status(403).json({ error: "Forbidden" });
+```
+
+### Feature Sync at Service Startup
+
+```ts
+// Called once on service startup to register features with Authy
+await fetch("http://auth-service:3031/api/v1/internal/sync-features", {
+  method: "POST",
+  headers: {
+    "X-Internal-API-Key": process.env.INTERNAL_API_KEY,
+    "X-App-Secret": process.env.APP_SECRET,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    features: [
+      { key: "view_transactions", displayName: "View Transactions" },
+      { key: "approve_transaction", displayName: "Approve Transaction" },
+    ],
+  }),
+});
+// Admin will see a pending sync request in the Authy UI to approve
+```
+
 ---
 
-## 14. Error Handling
+## 16. Error Handling
 
 ### Error Hierarchy
 
@@ -1225,11 +1888,11 @@ Error
 
 ---
 
-## 15. Rate Limiting
+## 17. Rate Limiting
 
 Three rate limiters are configured using `express-rate-limit` with in-memory storage.
 
-| Limiter.            | Scope  | Window | Max | Applied to                                |
+| Limiter             | Scope  | Window | Max | Applied to                                |
 | ------------------- | ------ | ------ | --- | ----------------------------------------- |
 | `globalRateLimiter` | Per IP | 15 min | 100 | All routes                                |
 | `authRateLimiter`   | Per IP | 15 min | 5   | `/register`, `/login`, `/forgot-password` |
@@ -1241,7 +1904,7 @@ When a limit is exceeded, the response is `429 Too Many Requests` with standard 
 
 ---
 
-## 16. Setup & Running
+## 18. Setup & Running
 
 ### Prerequisites
 
@@ -1292,7 +1955,7 @@ The server starts at `http://localhost:3031` (or the `PORT` you set).
 
 ---
 
-## 17. Docker Deployment
+## 19. Docker Deployment
 
 ### Starting all services
 
@@ -1344,7 +2007,7 @@ Readiness probe: GET /health/ready
 
 ---
 
-## 18. Testing
+## 20. Testing
 
 ### Running Tests
 
