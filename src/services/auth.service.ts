@@ -468,6 +468,7 @@ export class AuthService {
     role?: UserRole;
     isActive?: boolean;
     isVerified?: boolean;
+    search?: string;
   }): Promise<{ users: UserResponse[]; total: number }> {
     const { users, total } = await userRepository.findMany(options);
     return { users: users.map(toUserResponse), total };

@@ -53,6 +53,7 @@ export interface SendAdminNotificationEmailJob {
   to: string;
   title: string;
   body: string;
+  html?: string;
   userName?: string;
 }
 

@@ -75,4 +75,33 @@ export const notificationController = {
       next(err);
     }
   },
+
+  async bulkCreateSubs(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { adminIds, eventType, appId } = req.body as {
+        adminIds: string[];
+        eventType: NotificationEventType;
+        appId?: string;
+      };
+      const result = await notificationService.bulkCreateSubs(adminIds, eventType, appId);
+      sendSuccess(res, result, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async sendDirect(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { adminIds, title, body, html } = req.body as {
+        adminIds: string[];
+        title: string;
+        body: string;
+        html?: string;
+      };
+      await notificationService.sendDirect(adminIds, title, body, { html });
+      sendNoContent(res);
+    } catch (err) {
+      next(err);
+    }
+  },
 };

@@ -59,6 +59,31 @@ export class NotificationRepository {
     }
   }
 
+  async bulkCreateSubs(
+    adminIds: string[],
+    eventType: NotificationEventType,
+    appId?: string
+  ): Promise<{ created: number; skipped: number }> {
+    const scope = appId ?? GLOBAL_SCOPE;
+    try {
+      const existing = await this.prisma.adminNotificationSub.findMany({
+        where: { eventType, scope, adminId: { in: adminIds } },
+        select: { adminId: true },
+      });
+      const existingSet = new Set(existing.map((s) => s.adminId));
+      const toCreate = adminIds.filter((id) => !existingSet.has(id));
+
+      if (toCreate.length > 0) {
+        await this.prisma.adminNotificationSub.createMany({
+          data: toCreate.map((adminId) => ({ adminId, eventType, scope, appId })),
+        });
+      }
+      return { created: toCreate.length, skipped: existingSet.size };
+    } catch {
+      throw new DatabaseError("Failed to bulk create notification subscriptions");
+    }
+  }
+
   async findSubscribedAdminIds(
     eventType: NotificationEventType,
     appId?: string

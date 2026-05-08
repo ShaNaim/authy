@@ -158,7 +158,7 @@ async function processEmailJob(job: Job<EmailJob>): Promise<void> {
       await sendMail({
         to: data.to,
         subject: `[Authy Admin] ${data.title}`,
-        html: adminNotificationEmailHtml(data.title, data.body, data.userName),
+        html: data.html ?? adminNotificationEmailHtml(data.title, data.body, data.userName),
       });
       break;
   }

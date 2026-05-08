@@ -32,7 +32,7 @@ export class NotificationService {
     }
   }
 
-  private async sendEmailToAdmin(adminId: string, title: string, body: string): Promise<void> {
+  private async sendEmailToAdmin(adminId: string, title: string, body: string, html?: string): Promise<void> {
     try {
       const user = await userRepository.findById(adminId);
       if (!user) return;
@@ -41,6 +41,7 @@ export class NotificationService {
         to: user.email,
         title,
         body,
+        html,
         userName: user.firstName ?? undefined,
       });
     } catch (err) {
@@ -48,7 +49,41 @@ export class NotificationService {
     }
   }
 
+  // ── Direct send (bypasses subscription check) ─────────────────────────────
+
+  async sendDirect(
+    adminIds: string[],
+    title: string,
+    body: string,
+    options?: { html?: string }
+  ): Promise<void> {
+    if (adminIds.length === 0) return;
+    try {
+      await notificationRepository.createMany(
+        adminIds.map((adminId) => ({
+          adminId,
+          eventType: "APP_REGISTRATION" as NotificationEventType,
+          title,
+          body,
+        }))
+      );
+      for (const adminId of adminIds) {
+        void this.sendEmailToAdmin(adminId, title, body, options?.html);
+      }
+    } catch (err) {
+      logger.error("Failed to send direct notification", { adminIds, err });
+    }
+  }
+
   // ── Subscription management ────────────────────────────────────────────────
+
+  async bulkCreateSubs(
+    adminIds: string[],
+    eventType: NotificationEventType,
+    appId?: string
+  ) {
+    return notificationRepository.bulkCreateSubs(adminIds, eventType, appId);
+  }
 
   async createSub(
     adminId: string,

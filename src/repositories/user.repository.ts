@@ -135,12 +135,21 @@ export class UserRepository {
     role?: UserRole;
     isActive?: boolean;
     isVerified?: boolean;
+    search?: string;
   }): Promise<{ users: User[]; total: number }> {
     const skip = (options.page - 1) * options.limit;
     const where: Prisma.UserWhereInput = {};
     if (options.role !== undefined) where.role = options.role;
     if (options.isActive !== undefined) where.isActive = options.isActive;
     if (options.isVerified !== undefined) where.isVerified = options.isVerified;
+    if (options.search) {
+      const q = options.search.trim();
+      where.OR = [
+        { email: { contains: q, mode: "insensitive" } },
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+      ];
+    }
 
     try {
       const [users, total] = await this.prisma.$transaction([

@@ -184,11 +184,28 @@ export type SetUserFeaturesInput = z.infer<typeof setUserFeaturesSchema>;
 
 // ── Notification subscriptions ────────────────────────────────────────────────
 
+const notifEventTypeEnum = z.enum(["APP_REGISTRATION", "FEATURE_SYNC", "USER_ACCESS_GRANTED", "USER_ACCESS_REVOKED", "ROLE_MODIFIED"]);
+
 export const createNotifSubSchema = z.object({
-  eventType: z.enum(["APP_REGISTRATION", "FEATURE_SYNC", "USER_ACCESS_GRANTED", "USER_ACCESS_REVOKED", "ROLE_MODIFIED"]),
+  eventType: notifEventTypeEnum,
   appId: z.string().uuid().optional(),
 });
 export type CreateNotifSubInput = z.infer<typeof createNotifSubSchema>;
+
+export const bulkCreateSubsSchema = z.object({
+  adminIds: z.array(z.string().uuid("Invalid admin ID")).min(1, "At least one admin ID is required").max(100),
+  eventType: notifEventTypeEnum,
+  appId: z.string().uuid().optional(),
+});
+export type BulkCreateSubsInput = z.infer<typeof bulkCreateSubsSchema>;
+
+export const sendDirectNotificationSchema = z.object({
+  adminIds: z.array(z.string().uuid("Invalid admin ID")).min(1, "At least one admin ID is required").max(100),
+  title: z.string().min(1, "Title is required").max(200),
+  body: z.string().min(1, "Body is required").max(5000),
+  html: z.string().max(50000).optional(),
+});
+export type SendDirectNotificationInput = z.infer<typeof sendDirectNotificationSchema>;
 
 // ── Internal ──────────────────────────────────────────────────────────────────
 
