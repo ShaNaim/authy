@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { authService } from "@/services/auth.service";
 import { auditService } from "@/services/audit.service";
+import { statsService } from "@/services/stats.service";
 import { sendSuccess, sendNoContent, sendPaginated } from "@/utils/response.utils";
 import { UserRole } from "@/constants";
 
@@ -13,6 +14,15 @@ function getMeta(req: Request) {
 }
 
 export const adminController = {
+  async getDashboardStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await statsService.getDashboardStats(req.user!.userId);
+      sendSuccess(res, { stats }, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async listUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { page = "1", limit = "20", role, isActive, isVerified, search } = req.query as Record<string, string>;
