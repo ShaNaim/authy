@@ -384,6 +384,12 @@ export class AclService {
     });
   }
 
+  async getRoleFeatures(roleId: string) {
+    const role = await appRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("Role not found");
+    return appRepository.getRoleFeatureIds(roleId);
+  }
+
   async setRoleFeatures(
     roleId: string,
     featureIds: string[],

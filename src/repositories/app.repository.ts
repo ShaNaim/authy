@@ -298,6 +298,15 @@ export class AppRepository {
     }
   }
 
+  async getRoleFeatureIds(roleId: string): Promise<string[]> {
+    try {
+      const rows = await this.prisma.roleFeature.findMany({ where: { roleId }, select: { featureId: true } });
+      return rows.map((r) => r.featureId);
+    } catch {
+      throw new DatabaseError("Failed to get role features");
+    }
+  }
+
   async getUserIdsByRole(roleId: string): Promise<string[]> {
     try {
       const rows = await this.prisma.userApp.findMany({

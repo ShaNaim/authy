@@ -44,6 +44,7 @@ router.get("/apps/:appId/roles", aclController.listRoles);
 router.post("/apps/:appId/roles", validate(createRoleSchema), aclController.createRole);
 router.patch("/roles/:roleId", validate(updateRoleSchema), aclController.updateRole);
 router.delete("/roles/:roleId", aclController.deleteRole);
+router.get("/roles/:roleId/features", aclController.getRoleFeatures);
 router.put("/roles/:roleId/features", validate(setRoleFeaturesSchema), aclController.setRoleFeatures);
 
 // ── User-App Access ───────────────────────────────────────────────────────────

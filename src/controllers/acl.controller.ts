@@ -193,6 +193,15 @@ export const aclController = {
     }
   },
 
+  async getRoleFeatures(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const featureIds = await aclService.getRoleFeatures(req.params["roleId"]!);
+      sendSuccess(res, { featureIds }, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async setRoleFeatures(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const role = await aclService.setRoleFeatures(req.params["roleId"]!, req.body.featureIds, req.user!.userId, getMeta(req));
