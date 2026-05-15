@@ -49,28 +49,60 @@ enum AuthMode {
 enum OrgMemberRole {
   OWNER
   ADMIN
+  MEMBER
+}
+
+enum OrgPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum WebhookEventType {
+  USER_CREATED
+  USER_LOGIN
+  USER_LOGIN_FAILED
+  USER_DELETED
+  USER_PASSWORD_CHANGED
+  ROLE_UPDATED
+  APP_CREATED
+  FEATURE_SYNCED
+}
+
+enum OAuthGrantType {
+  AUTHORIZATION_CODE
+  REFRESH_TOKEN
 }
 
 // ─────────────────────────── Organizations ───────────────────
 
 model Organization {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  displayName String
-  description String?
-  status      OrgStatus @default(ACTIVE)
-  secretHash  String
-  authMode    AuthMode  @default(FULL)
-  isDefault   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  name                 String    @unique
+  displayName          String
+  description          String?
+  status               OrgStatus @default(ACTIVE)
+  secretHash           String
+  authMode             AuthMode  @default(FULL)
+  isDefault            Boolean   @default(false)
+  plan                 OrgPlan   @default(FREE)
+  logoUrl              String?
+  customDomain         String?   @unique
+  allowedEmailDomains  String[]  @default([])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  members OrganizationMember[]
-  users   User[]
-  apps    App[]
+  members      OrganizationMember[]
+  users        User[]
+  apps         App[]
+  apiKeys      OrgApiKey[]
+  webhooks     OrgWebhook[]
+  oauthApps    OAuthApp[]
 
   @@index([name])
   @@index([status])
+  @@index([plan])
 }
 
 model OrganizationMember {
@@ -366,4 +398,123 @@ model Notification {
 
   @@index([adminId, isRead])
   @@index([adminId, createdAt])
+}
+
+// ─────────────────────── Org API Keys ────────────────────────
+
+model OrgApiKey {
+  id            String    @id @default(uuid())
+  organizationId String
+  name          String
+  keyHash       String    @unique
+  prefix        String
+  scopes        String[]  @default([])
+  testMode      Boolean   @default(false)
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([keyHash])
+}
+
+// ─────────────────────── Org Webhooks ────────────────────────
+
+model OrgWebhook {
+  id              String    @id @default(uuid())
+  organizationId  String
+  url             String
+  secret          String
+  events          WebhookEventType[]
+  isActive        Boolean   @default(true)
+  lastDeliveredAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries    WebhookDelivery[]
+
+  @@index([organizationId])
+}
+
+model WebhookDelivery {
+  id             String    @id @default(uuid())
+  webhookId      String
+  deliveryId     String    @unique
+  event          WebhookEventType
+  payload        Json
+  responseStatus Int?
+  responseBody   String?
+  attemptCount   Int       @default(1)
+  success        Boolean   @default(false)
+  deliveredAt    DateTime  @default(now())
+
+  webhook OrgWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([deliveryId])
+  @@index([webhookId, deliveredAt])
+}
+
+// ─────────────────────── OAuth 2.0 ───────────────────────────
+
+model OAuthApp {
+  id              String   @id @default(uuid())
+  organizationId  String
+  name            String
+  clientId        String   @unique
+  clientSecretHash String
+  redirectUris    String[]
+  grantTypes      OAuthGrantType[]
+  scopes          String[]
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  authCodes     OAuthAuthCode[]
+
+  @@index([organizationId])
+  @@index([clientId])
+}
+
+model OAuthAuthCode {
+  id            String   @id @default(uuid())
+  oauthAppId    String
+  userId        String
+  code          String   @unique
+  codeChallenge String
+  redirectUri   String
+  scopes        String[]
+  expiresAt     DateTime
+  isUsed        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  oauthApp OAuthApp @relation(fields: [oauthAppId], references: [id], onDelete: Cascade)
+
+  @@index([oauthAppId])
+  @@index([code])
+  @@index([expiresAt])
+}
+
+// ─────────────── Org Invitations ─────────────────────────────
+
+model OrgInvitation {
+  id             String        @id @default(uuid())
+  organizationId String
+  email          String
+  role           OrgMemberRole @default(MEMBER)
+  tokenHash      String        @unique
+  expiresAt      DateTime
+  isAccepted     Boolean       @default(false)
+  invitedBy      String
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId])
+  @@index([tokenHash])
+  @@index([email])
 }
