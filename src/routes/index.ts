@@ -6,6 +6,7 @@ import aclRoutes from "./acl.routes";
 import notificationRoutes from "./notification.routes";
 import internalRoutes from "./internal.routes";
 import healthRoutes from "./health.routes";
+import { adminOrgRouter, orgAdminRouter, orgApiRouter } from "./org.routes";
 
 const router = Router();
 const prefix = `/api/${env.API_VERSION}`;
@@ -14,6 +15,9 @@ router.use(`${prefix}/auth`, authRoutes);
 router.use(`${prefix}/admin`, adminRoutes);
 router.use(`${prefix}/admin`, aclRoutes);
 router.use(`${prefix}/admin/notifications`, notificationRoutes);
+router.use(`${prefix}/admin/organizations`, adminOrgRouter);
+router.use(`${prefix}/org`, orgAdminRouter);
+router.use(`${prefix}/org-api`, orgApiRouter);
 router.use(`${prefix}/internal`, internalRoutes);
 router.use("/health", healthRoutes);
 

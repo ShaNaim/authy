@@ -213,3 +213,51 @@ export const internalSyncFeaturesSchema = z.object({
   features: z.array(featureInputSchema).min(1),
 });
 export type InternalSyncFeaturesInput = z.infer<typeof internalSyncFeaturesSchema>;
+
+// ── Organizations ─────────────────────────────────────────────────────────────
+
+const orgNameSchema = z
+  .string()
+  .min(2)
+  .max(50)
+  .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens");
+
+const authModeEnum = z.enum(["FULL", "DELEGATED", "BOTH"]);
+const orgMemberRoleEnum = z.enum(["OWNER", "ADMIN"]);
+
+export const createOrgSchema = z.object({
+  name: orgNameSchema,
+  displayName: z.string().min(2).max(100).trim(),
+  description: z.string().max(500).trim().optional(),
+  authMode: authModeEnum.optional(),
+});
+export type CreateOrgInput = z.infer<typeof createOrgSchema>;
+
+export const updateOrgSchema = z.object({
+  displayName: z.string().min(2).max(100).trim().optional(),
+  description: z.string().max(500).trim().optional(),
+  authMode: authModeEnum.optional(),
+});
+export type UpdateOrgInput = z.infer<typeof updateOrgSchema>;
+
+export const addOrgMemberSchema = z.object({
+  userId: z.string().uuid("Invalid user ID"),
+  role: orgMemberRoleEnum.optional(),
+});
+export type AddOrgMemberInput = z.infer<typeof addOrgMemberSchema>;
+
+export const orgRegisterSchema = z.object({
+  email: z.string().email().toLowerCase().trim(),
+  password: z.string().min(8).max(128).optional(),
+  firstName: z.string().max(100).trim().optional(),
+  lastName: z.string().max(100).trim().optional(),
+  mode: z.enum(["full", "delegated"]).optional(),
+});
+export type OrgRegisterInput = z.infer<typeof orgRegisterSchema>;
+
+export const orgLoginSchema = z.object({
+  email: z.string().email().toLowerCase().trim(),
+  password: z.string().optional(),
+  mode: z.enum(["full", "delegated"]).optional(),
+});
+export type OrgLoginInput = z.infer<typeof orgLoginSchema>;

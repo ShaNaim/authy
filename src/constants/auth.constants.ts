@@ -1,5 +1,5 @@
 // User & roles — sourced from Prisma so there is a single source of truth
-export { UserRole, AppStatus, SyncRequestStatus, NotificationEventType } from "@prisma/client";
+export { UserRole, AppStatus, SyncRequestStatus, NotificationEventType, OrgStatus, AuthMode, OrgMemberRole } from "@prisma/client";
 
 // Tokens
 export enum TokenType {
@@ -50,6 +50,17 @@ export enum AuditAction {
   USER_APP_UPDATED = "USER_APP_UPDATED",
   USER_APP_REMOVED = "USER_APP_REMOVED",
   USER_FEATURES_SET = "USER_FEATURES_SET",
+  // Organizations
+  ORG_CREATED = "ORG_CREATED",
+  ORG_UPDATED = "ORG_UPDATED",
+  ORG_SUSPENDED = "ORG_SUSPENDED",
+  ORG_REACTIVATED = "ORG_REACTIVATED",
+  ORG_SECRET_REGENERATED = "ORG_SECRET_REGENERATED",
+  ORG_MEMBER_ADDED = "ORG_MEMBER_ADDED",
+  ORG_MEMBER_REMOVED = "ORG_MEMBER_REMOVED",
+  // Org end-user actions
+  ORG_USER_REGISTERED = "ORG_USER_REGISTERED",
+  ORG_USER_LOGIN = "ORG_USER_LOGIN",
 }
 
 // Password rules

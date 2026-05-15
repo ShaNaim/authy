@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { aclService } from "@/services/acl.service";
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from "@/utils/response.utils";
 import { AppStatus, SyncRequestStatus } from "@prisma/client";
+import { DEFAULT_ORG_ID } from "@/repositories/org.repository";
 
 function getMeta(req: Request) {
   return {
@@ -16,7 +17,8 @@ export const aclController = {
 
   async registerApp(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const result = await aclService.registerApp(req.body, req.user!.userId, getMeta(req));
+      const organizationId = req.body.organizationId ?? DEFAULT_ORG_ID;
+      const result = await aclService.registerApp({ ...req.body, organizationId }, req.user!.userId, getMeta(req));
       sendCreated(res, result, req.requestId);
     } catch (err) {
       next(err);

@@ -36,6 +36,7 @@ export class AppRepository {
     secretHash: string;
     allowedIps?: string[];
     status?: AppStatus;
+    organizationId: string;
   }): Promise<App> {
     try {
       return await this.prisma.app.create({ data });
@@ -77,10 +78,12 @@ export class AppRepository {
     page: number;
     limit: number;
     status?: AppStatus;
+    organizationId?: string;
   }): Promise<{ apps: App[]; total: number }> {
     const skip = (options.page - 1) * options.limit;
     const where: Prisma.AppWhereInput = {};
     if (options.status) where.status = options.status;
+    if (options.organizationId) where.organizationId = options.organizationId;
     try {
       const [apps, total] = await this.prisma.$transaction([
         this.prisma.app.findMany({ where, skip, take: options.limit, orderBy: { createdAt: "desc" } }),

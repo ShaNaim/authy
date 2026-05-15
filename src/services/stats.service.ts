@@ -15,6 +15,12 @@ export interface DashboardStats {
     active: number;
     suspended: number;
   };
+  organizations: {
+    total: number;
+    active: number;
+    suspended: number;
+    byAuthMode: Record<string, number>;
+  };
   syncRequests: {
     pending: number;
     approved: number;
@@ -47,6 +53,10 @@ export const statsService = {
         totalApps,
         activeApps,
         suspendedApps,
+        totalOrgs,
+        activeOrgs,
+        suspendedOrgs,
+        orgsByAuthMode,
         pendingSync,
         approvedSync,
         rejectedSync,
@@ -62,6 +72,10 @@ export const statsService = {
         prisma.app.count(),
         prisma.app.count({ where: { status: "ACTIVE" } }),
         prisma.app.count({ where: { status: "SUSPENDED" } }),
+        prisma.organization.count(),
+        prisma.organization.count({ where: { status: "ACTIVE" } }),
+        prisma.organization.count({ where: { status: "SUSPENDED" } }),
+        prisma.organization.groupBy({ by: ["authMode"], _count: { _all: true }, orderBy: { authMode: "asc" } }),
         prisma.featureSyncRequest.count({ where: { status: "PENDING" } }),
         prisma.featureSyncRequest.count({ where: { status: "APPROVED" } }),
         prisma.featureSyncRequest.count({ where: { status: "REJECTED" } }),
@@ -76,6 +90,12 @@ export const statsService = {
       for (const row of usersByRole) {
         const cnt = typeof row._count === "object" ? row._count._all : 0;
         byRole[row.role] = cnt ?? 0;
+      }
+
+      const byAuthMode: Record<string, number> = {};
+      for (const row of orgsByAuthMode) {
+        const cnt = typeof row._count === "object" ? row._count._all : 0;
+        byAuthMode[row.authMode] = cnt ?? 0;
       }
 
       // Build date window (oldest → today)
@@ -125,6 +145,12 @@ export const statsService = {
           total: totalApps,
           active: activeApps,
           suspended: suspendedApps,
+        },
+        organizations: {
+          total: totalOrgs,
+          active: activeOrgs,
+          suspended: suspendedOrgs,
+          byAuthMode,
         },
         syncRequests: {
           pending: pendingSync,

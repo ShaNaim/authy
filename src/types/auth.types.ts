@@ -1,4 +1,4 @@
-import { UserRole } from "@/constants";
+import { UserRole, OrgMemberRole } from "@/constants";
 
 /**
  * User object from database (matches Prisma model)
@@ -32,6 +32,7 @@ export interface UserResponse {
   role: UserRole;
   isVerified: boolean;
   isActive: boolean;
+  organizationId: string;
   // Profile fields
   firstName?: string | null;
   lastName?: string | null;
@@ -66,6 +67,9 @@ export interface AccessTokenPayload {
   role: UserRole;
   type: "access";
   jti: string;
+  // Organization membership (null for users who are not org admins)
+  orgId: string;
+  orgRole: OrgMemberRole | null;
   // keyed by appId — populated at login from user's active app memberships
   appPermissions?: Record<string, AppPermission>;
   iat?: number;

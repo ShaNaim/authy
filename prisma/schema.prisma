@@ -35,6 +35,59 @@ enum NotificationEventType {
   ROLE_MODIFIED
 }
 
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuthMode {
+  FULL
+  DELEGATED
+  BOTH
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+}
+
+// ─────────────────────────── Organizations ───────────────────
+
+model Organization {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  displayName String
+  description String?
+  status      OrgStatus @default(ACTIVE)
+  secretHash  String
+  authMode    AuthMode  @default(FULL)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members OrganizationMember[]
+  users   User[]
+  apps    App[]
+
+  @@index([name])
+  @@index([status])
+}
+
+model OrganizationMember {
+  id             String        @id @default(uuid())
+  organizationId String
+  userId         String
+  role           OrgMemberRole @default(ADMIN)
+  createdAt      DateTime      @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
 // ─────────────────────────── Core Auth ───────────────────────
 
 model User {
@@ -63,9 +116,11 @@ model User {
   position            String?
   identifierNumber    String?   @unique
 
+  organizationId      String
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
+  organization         Organization           @relation(fields: [organizationId], references: [id])
   refreshTokens        RefreshToken[]
   emailVerifications   EmailVerification[]
   passwordResets       PasswordReset[]
@@ -77,8 +132,10 @@ model User {
   notificationSubs     AdminNotificationSub[]
   notifications        Notification[]
   syncRequestReviews   FeatureSyncRequest[]
+  orgMemberships       OrganizationMember[]
 
   @@index([email])
+  @@index([organizationId])
 }
 
 model RefreshToken {
@@ -157,16 +214,18 @@ model AuditLog {
 // ─────────────────────────── Multi-App RBAC ──────────────────
 
 model App {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  displayName String
-  description String?
-  secretHash  String
-  status      AppStatus @default(ACTIVE)
-  allowedIps  String[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  name           String    @unique
+  displayName    String
+  description    String?
+  secretHash     String
+  status         AppStatus @default(ACTIVE)
+  allowedIps     String[]
+  organizationId String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
+  organization  Organization           @relation(fields: [organizationId], references: [id])
   features      Feature[]
   roles         AppRole[]
   userApps      UserApp[]
@@ -176,6 +235,7 @@ model App {
 
   @@index([name])
   @@index([status])
+  @@index([organizationId])
 }
 
 model Feature {

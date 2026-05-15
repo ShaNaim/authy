@@ -2,6 +2,8 @@ import { PrismaClient, User, UserRole, Prisma } from "@prisma/client";
 import { getPrismaClient } from "@/config/database";
 import { DatabaseError } from "@/utils/errors";
 
+const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
+
 export class UserRepository {
   private prisma: PrismaClient;
 
@@ -25,13 +27,16 @@ export class UserRepository {
     }
   }
 
-  async create(data: { email: string; passwordHash: string; role?: UserRole }): Promise<User> {
+  async create(data: { email: string; passwordHash: string; role?: UserRole; organizationId?: string; firstName?: string; lastName?: string }): Promise<User> {
     try {
       return await this.prisma.user.create({
         data: {
           email: data.email.toLowerCase(),
           passwordHash: data.passwordHash,
           role: data.role ?? UserRole.USER,
+          organizationId: data.organizationId ?? DEFAULT_ORG_ID,
+          firstName: data.firstName,
+          lastName: data.lastName,
         },
       });
     } catch (error) {

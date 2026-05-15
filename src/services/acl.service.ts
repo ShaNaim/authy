@@ -15,7 +15,7 @@ export class AclService {
   // ── App Management ─────────────────────────────────────────────────────────
 
   async registerApp(
-    data: { name: string; displayName: string; description?: string; allowedIps?: string[] },
+    data: { name: string; displayName: string; description?: string; allowedIps?: string[]; organizationId: string },
     adminId: string,
     meta: RequestMeta = {}
   ): Promise<{ app: object; secret: string }> {
