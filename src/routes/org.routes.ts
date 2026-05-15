@@ -74,6 +74,7 @@ orgAdminRouter.patch("/me", validate(updateOrgSchema), orgAdminController.update
 orgAdminRouter.get("/members", orgAdminController.listMembers);
 orgAdminRouter.get("/apps", orgAdminController.listApps);
 orgAdminRouter.get("/users", orgAdminController.listUsers);
+orgAdminRouter.get("/usage", orgAdminController.getUsage);
 
 // ── Public org API: /org-api/* (org secret auth) ──────────────────────────────
 

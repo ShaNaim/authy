@@ -19,7 +19,7 @@ app.use(
     origin: env.NODE_ENV === "production" ? env.FRONTEND_URL : true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID", "X-Internal-API-Key"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID", "X-Internal-API-Key", "X-Authy-Key"],
     exposedHeaders: ["X-Request-ID"],
   }),
 );

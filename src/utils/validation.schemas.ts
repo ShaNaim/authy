@@ -261,3 +261,83 @@ export const orgLoginSchema = z.object({
   mode: z.enum(["full", "delegated"]).optional(),
 });
 export type OrgLoginInput = z.infer<typeof orgLoginSchema>;
+
+// ── Org API Keys ──────────────────────────────────────────────────────────────
+
+export const createApiKeySchema = z.object({
+  name: z.string().min(1).max(100).trim(),
+  scopes: z.array(z.string().min(1).max(50)).max(20).optional().default([]),
+  testMode: z.boolean().optional().default(false),
+  expiresAt: z.coerce.date().optional(),
+});
+export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
+
+export const updateApiKeySchema = z.object({
+  name: z.string().min(1).max(100).trim().optional(),
+  scopes: z.array(z.string().min(1).max(50)).max(20).optional(),
+  expiresAt: z.coerce.date().nullable().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateApiKeyInput = z.infer<typeof updateApiKeySchema>;
+
+// ── OAuth Apps ────────────────────────────────────────────────────────────────
+
+export const createOAuthAppSchema = z.object({
+  name: z.string().min(1).max(100).trim(),
+  redirectUris: z.array(z.string().url("Invalid redirect URI")).min(1).max(10),
+  scopes: z.array(z.string().min(1).max(50)).max(20).optional().default(["openid", "profile", "email"]),
+});
+export type CreateOAuthAppInput = z.infer<typeof createOAuthAppSchema>;
+
+export const updateOAuthAppSchema = z.object({
+  name: z.string().min(1).max(100).trim().optional(),
+  redirectUris: z.array(z.string().url("Invalid redirect URI")).min(1).max(10).optional(),
+  scopes: z.array(z.string().min(1).max(50)).max(20).optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateOAuthAppInput = z.infer<typeof updateOAuthAppSchema>;
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+const webhookEventEnum = z.enum([
+  "USER_CREATED", "USER_LOGIN", "USER_LOGIN_FAILED", "USER_DELETED",
+  "USER_PASSWORD_CHANGED", "ROLE_UPDATED", "APP_CREATED", "FEATURE_SYNCED",
+]);
+
+export const createWebhookSchema = z.object({
+  url: z.string().url("Invalid webhook URL"),
+  events: z.array(webhookEventEnum).min(1, "At least one event type required"),
+});
+export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
+
+export const updateWebhookSchema = z.object({
+  url: z.string().url("Invalid webhook URL").optional(),
+  events: z.array(webhookEventEnum).min(1).optional(),
+  isActive: z.boolean().optional(),
+}).refine((d) => Object.keys(d).length > 0, { message: "At least one field must be provided" });
+export type UpdateWebhookInput = z.infer<typeof updateWebhookSchema>;
+
+// ── Check API ─────────────────────────────────────────────────────────────────
+
+export const checkPermissionSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  feature: z.string().min(1, "Feature key is required"),
+});
+export type CheckPermissionInput = z.infer<typeof checkPermissionSchema>;
+
+export const batchCheckPermissionSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  features: z.array(z.string().min(1)).min(1).max(50),
+});
+export type BatchCheckPermissionInput = z.infer<typeof batchCheckPermissionSchema>;
+
+// ── Org Invitations ───────────────────────────────────────────────────────────
+
+export const inviteMemberSchema = z.object({
+  email: z.string().email().toLowerCase().trim(),
+  role: z.enum(["OWNER", "ADMIN", "MEMBER"]).optional().default("MEMBER"),
+});
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(1, "Invitation token is required"),
+});
+export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;

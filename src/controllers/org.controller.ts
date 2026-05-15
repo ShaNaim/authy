@@ -193,6 +193,15 @@ export const orgAdminController = {
       next(err);
     }
   },
+
+  async getUsage(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await orgService.getUsageStats(req.user!.orgId);
+      sendSuccess(res, stats, 200, req.requestId);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 // ── Public Org API: end-user registration/login ────────────────────────────────

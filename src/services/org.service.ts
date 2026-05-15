@@ -1,8 +1,10 @@
-import { Organization, AuthMode, OrgStatus, OrgMemberRole } from "@prisma/client";
+import { Organization, AuthMode, OrgStatus, OrgMemberRole, OrgPlan } from "@prisma/client";
 import { orgRepository } from "@/repositories/org.repository";
 import { userRepository } from "@/repositories/user.repository";
 import { appRepository } from "@/repositories/app.repository";
 import { auditService } from "@/services/audit.service";
+import { cacheService } from "@/services/cache.service";
+import { PLAN_LIMITS } from "@/constants/plans.constants";
 import { generateSecureToken, hashToken } from "@/utils/token.utils";
 import { hashPassword, comparePassword, validatePasswordStrength } from "@/utils/password.utils";
 import {
@@ -216,6 +218,31 @@ export class OrgService {
 
   async updateMyOrg(orgId: string, data: { displayName?: string; description?: string; authMode?: AuthMode }, userId: string, meta: RequestMeta = {}) {
     return this.updateOrg(orgId, data, userId, meta);
+  }
+
+  async getUsageStats(orgId: string) {
+    const org = await orgRepository.findById(orgId);
+    if (!org) throw new NotFoundError("Organization not found");
+
+    const limits = PLAN_LIMITS[org.plan as OrgPlan];
+    const stats = await orgRepository.getStats(orgId);
+    const [mauThisMonth, apiCallsToday] = await Promise.all([
+      cacheService.getMau(orgId),
+      cacheService.getApiCallsToday(orgId),
+    ]);
+
+    return {
+      plan: org.plan,
+      limits,
+      usage: {
+        mauThisMonth,
+        apiCallsToday,
+        appCount: stats.appCount,
+        webhookCount: 0,
+        apiKeyCount: 0,
+        oauthAppCount: 0,
+      },
+    };
   }
 
   // ── Public Org API: authenticate org secret ────────────────────────────────

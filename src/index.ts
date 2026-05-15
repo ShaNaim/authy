@@ -4,6 +4,7 @@ import { env } from "@/config/env";
 import logger from "@/utils/base.logger";
 import { closeQueues } from "@/services/queue.service";
 import { startEmailWorkerService } from "@/services/email.service";
+import { startWebhookWorkerService } from "@/services/webhook-worker.service";
 import app from "@/app";
 import http from "http";
 
@@ -16,11 +17,19 @@ async function bootstrap(): Promise<void> {
   await connectDatabase();
   await connectRedis();
 
-  // Start message queue worker
+  // Start message queue workers
   try {
     startEmailWorkerService();
   } catch (err) {
     logger.warn("Email queue worker failed to start — emails will be skipped", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    startWebhookWorkerService();
+  } catch (err) {
+    logger.warn("Webhook queue worker failed to start — webhook deliveries will be skipped", {
       error: err instanceof Error ? err.message : String(err),
     });
   }
