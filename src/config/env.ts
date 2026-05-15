@@ -55,6 +55,11 @@ const envSchema = z.object({
 
   // Password history
   PASSWORD_HISTORY_LIMIT: z.string().transform(Number).pipe(z.number().min(1).max(24)).default(5),
+
+  // OAuth 2.0 RSA keypair (PEM, optional — ephemeral keypair used if not set)
+  OAUTH_PRIVATE_KEY: z.string().optional(),
+  OAUTH_PUBLIC_KEY: z.string().optional(),
+  OAUTH_KEY_ID: z.string().optional(),
 });
 
 /**
