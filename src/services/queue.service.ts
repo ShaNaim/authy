@@ -12,6 +12,7 @@ const connection = {
 
 export const QUEUE_NAMES = {
   EMAIL: "authy-email",
+  WEBHOOKS: "authy-webhooks",
 } as const;
 
 export const EMAIL_JOB_TYPES = {
@@ -135,8 +136,89 @@ export async function closeQueues(): Promise<void> {
       await emailQueue.close();
       emailQueue = null;
     }
+    if (webhookWorker) {
+      await webhookWorker.close();
+      webhookWorker = null;
+    }
+    if (webhookQueue) {
+      await webhookQueue.close();
+      webhookQueue = null;
+    }
     logger.info("Queues closed");
   } catch (err) {
     logger.error("Error closing queues", { error: err });
   }
+}
+
+// ── Webhook Queue ─────────────────────────────────────────────────────────────
+
+export interface WebhookJob {
+  webhookId: string;
+  organizationId: string;
+  url: string;
+  secret: string;
+  event: string;
+  payload: Record<string, unknown>;
+  deliveryId: string;
+}
+
+let webhookQueue: Queue<WebhookJob> | null = null;
+let webhookWorker: Worker<WebhookJob> | null = null;
+
+export function getWebhookQueue(): Queue<WebhookJob> {
+  if (!webhookQueue) {
+    webhookQueue = new Queue<WebhookJob>(QUEUE_NAMES.WEBHOOKS, {
+      connection,
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 10000 },
+        removeOnComplete: { count: 200 },
+        removeOnFail: { count: 500 },
+      },
+    });
+
+    webhookQueue.on("error", (err) => {
+      logger.error("Webhook queue error", { error: err.message });
+    });
+  }
+  return webhookQueue;
+}
+
+export async function enqueueWebhook(job: WebhookJob): Promise<void> {
+  try {
+    const queue = getWebhookQueue();
+    await queue.add("deliver", job);
+    logger.debug("Webhook job enqueued", { webhookId: job.webhookId, event: job.event });
+  } catch (err) {
+    logger.error("Failed to enqueue webhook job", {
+      error: err instanceof Error ? err.message : String(err),
+      webhookId: job.webhookId,
+    });
+  }
+}
+
+export function startWebhookWorker(
+  processor: (job: Job<WebhookJob>) => Promise<void>
+): Worker<WebhookJob> {
+  if (!webhookWorker) {
+    webhookWorker = new Worker<WebhookJob>(QUEUE_NAMES.WEBHOOKS, processor, {
+      connection,
+      concurrency: 10,
+    });
+
+    webhookWorker.on("completed", (job) => {
+      logger.debug("Webhook job completed", { jobId: job.id });
+    });
+
+    webhookWorker.on("failed", (job, err) => {
+      logger.error("Webhook job failed", { jobId: job?.id, error: err.message });
+    });
+
+    webhookWorker.on("error", (err) => {
+      logger.error("Webhook worker error", { error: err.message });
+    });
+
+    logger.info("Webhook queue worker started");
+  }
+  return webhookWorker;
 }
