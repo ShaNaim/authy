@@ -10,17 +10,25 @@ async function runAuditLogCleanup(): Promise<void> {
   let totalDeleted = 0;
 
   // Delete logs for users in each plan tier beyond that tier's retention window.
+  // Two-step approach: Prisma's deleteMany cannot traverse two relation hops
+  // (AuditLog → user → organization.plan) in a single where clause.
   for (const plan of Object.values(OrgPlan)) {
     const { logRetentionDays } = PLAN_LIMITS[plan];
     const cutoff = new Date(Date.now() - logRetentionDays * ONE_DAY_MS);
 
     try {
+      const users = await prisma.user.findMany({
+        where: { organization: { plan } },
+        select: { id: true },
+      });
+
+      if (users.length === 0) continue;
+
+      const userIds = users.map((u) => u.id);
       const { count } = await prisma.auditLog.deleteMany({
         where: {
           createdAt: { lt: cutoff },
-          user: {
-            organization: { plan },
-          },
+          userId: { in: userIds },
         },
       });
       totalDeleted += count;

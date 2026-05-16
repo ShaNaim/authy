@@ -259,15 +259,36 @@ async function verifyToken(token) {
   "type": "oauth_access",
   "iat": 1716000000,
   "exp": 1716000900,
-  "iss": "authy"
+  "iss": "https://your-authy-instance.com"
 }
 ```
+
+> **Note:** The `iss` (issuer) claim is the full base URL of your Authy instance, not a plain string. OIDC libraries that auto-discover configuration will validate this against the `issuer` field in the discovery document — make sure the URLs match exactly.
 
 ### OIDC Discovery
 
 ```
 GET https://your-authy-instance.com/.well-known/openid-configuration
 GET https://your-authy-instance.com/.well-known/jwks.json
+```
+
+The discovery document includes all required OIDC Discovery 1.0 fields:
+
+```json
+{
+  "issuer": "https://your-authy-instance.com",
+  "authorization_endpoint": "https://your-authy-instance.com/api/v1/oauth/authorize",
+  "token_endpoint": "https://your-authy-instance.com/api/v1/oauth/token",
+  "introspection_endpoint": "https://your-authy-instance.com/api/v1/oauth/introspect",
+  "jwks_uri": "https://your-authy-instance.com/.well-known/jwks.json",
+  "response_types_supported": ["code"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "grant_types_supported": ["authorization_code", "refresh_token"],
+  "code_challenge_methods_supported": ["S256"],
+  "token_endpoint_auth_methods_supported": ["client_secret_post"],
+  "scopes_supported": ["openid", "profile", "email"]
+}
 ```
 
 ---
@@ -516,9 +537,11 @@ Your organization's plan determines how many requests and resources you can use.
 | Monthly active users | 1,000 | 10,000 | 100,000 | Unlimited |
 | API calls / day | 5,000 | 50,000 | 500,000 | Unlimited |
 | Apps | 2 | 10 | 50 | Unlimited |
-| API keys | 5 | 20 | 100 | Unlimited |
-| OAuth apps | 2 | 10 | 50 | Unlimited |
-| Webhooks | 3 | 10 | 50 | Unlimited |
+| Feature keys | 20 | 100 | 500 | Unlimited |
+| API keys | 2 | 10 | 50 | Unlimited |
+| OAuth apps | 1 | 5 | 20 | Unlimited |
+| Webhooks | 2 | 10 | 50 | Unlimited |
+| Audit log retention | 7 days | 30 days | 90 days | 365 days |
 
 ### Checking your current usage
 

@@ -210,6 +210,7 @@ authy/src/
 │   ├── auth.service.ts
 │   ├── acl.service.ts
 │   ├── audit.service.ts
+│   ├── audit-cleanup.service.ts  # Daily job: deletes logs beyond each org's plan retention
 │   ├── cache.service.ts       # Permissions, MAU, API calls, user cache
 │   ├── notification.service.ts
 │   ├── oauth.service.ts
@@ -380,10 +381,11 @@ Every organization is on a plan that enforces hard limits. Exceeding a limit ret
 | MAU / month | 1,000 | 10,000 | 100,000 | Unlimited |
 | API calls / day | 5,000 | 50,000 | 500,000 | Unlimited |
 | Apps | 2 | 10 | 50 | Unlimited |
-| Feature keys | 50 | 500 | 5,000 | Unlimited |
-| API keys | 5 | 20 | 100 | Unlimited |
-| OAuth apps | 2 | 10 | 50 | Unlimited |
-| Webhooks | 3 | 10 | 50 | Unlimited |
+| Feature keys | 20 | 100 | 500 | Unlimited |
+| API keys | 2 | 10 | 50 | Unlimited |
+| OAuth apps | 1 | 5 | 20 | Unlimited |
+| Webhooks | 2 | 10 | 50 | Unlimited |
+| Log retention | 7 days | 30 days | 90 days | 365 days |
 
 ### How limits are tracked
 
@@ -481,6 +483,8 @@ OAuth tokens are **RS256 JWTs** signed with the org's RSA keypair. The public ke
 GET /.well-known/openid-configuration   OIDC discovery document
 GET /.well-known/jwks.json              Public key set (JWK format)
 ```
+
+The discovery document is a compliant OIDC Discovery 1.0 response. The `issuer` field is the full base URL of your Authy instance (e.g. `https://auth.yourcompany.com`), not a plain string. Required fields `subject_types_supported` (`["public"]`) and `id_token_signing_alg_values_supported` (`["RS256"]`) are present so consuming libraries can auto-configure without manual overrides.
 
 ### Endpoints
 
@@ -880,6 +884,21 @@ Every significant event is written to `AuditLog` with:
 ### Actions logged
 
 User flows, admin actions, org management, API key lifecycle, OAuth app lifecycle, webhook management, org user registration/login.
+
+Delegated-mode logins are recorded under the distinct action `ORG_USER_LOGIN_DELEGATED` (rather than `ORG_USER_LOGIN`) so the audit trail makes the trust boundary explicit — a `ORG_USER_LOGIN_DELEGATED` entry means Authy accepted the org's claim that the user was already authenticated externally.
+
+### Log retention
+
+Audit logs are automatically purged by the daily `audit-cleanup.service.ts` job according to each organization's plan tier:
+
+| Plan | Retention |
+|---|---|
+| FREE | 7 days |
+| STARTER | 30 days |
+| PRO | 90 days |
+| ENTERPRISE | 365 days |
+
+The cleanup job runs once on startup and then every 24 hours. Orphaned log entries (no associated user) are retained for the ENTERPRISE maximum (365 days) and then removed.
 
 ### Access log
 
