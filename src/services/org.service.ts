@@ -315,6 +315,18 @@ export class OrgService {
 
   // ── Public Org API: login end user ────────────────────────────────────────
 
+  /**
+   * Authenticates an end-user on behalf of an organization.
+   *
+   * Trust model for delegated mode:
+   *   When `mode` is "delegated", password validation is intentionally skipped.
+   *   Authy trusts that the calling org has already validated the user's credentials
+   *   in its own identity system before reaching this endpoint. The security boundary
+   *   is the org secret verified by `authenticateOrgSecret` middleware — without a
+   *   valid org secret, this endpoint cannot be reached at all. Delegated logins are
+   *   recorded under a separate audit action (ORG_USER_LOGIN_DELEGATED) to keep the
+   *   audit trail unambiguous.
+   */
   async orgLoginUser(
     org: Organization,
     data: {
@@ -342,11 +354,12 @@ export class OrgService {
       const valid = await comparePassword(data.password, user.passwordHash);
       if (!valid) throw new AuthenticationError("Invalid credentials");
     }
-    // In delegated mode: the org validated credentials themselves, we trust the call
+    // Delegated: the org validated credentials themselves — we trust the call.
+    // See JSDoc above for the full trust model explanation.
 
     await auditService.log({
       userId: user.id,
-      action: AuditAction.ORG_USER_LOGIN,
+      action: effectiveMode === "delegated" ? AuditAction.ORG_USER_LOGIN_DELEGATED : AuditAction.ORG_USER_LOGIN,
       details: { orgId: org.id, mode: effectiveMode },
       ...meta,
     });
