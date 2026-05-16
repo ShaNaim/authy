@@ -162,12 +162,14 @@ export const oauthController = {
     const api = apiBase();
 
     res.status(200).json({
-      issuer: "authy",
+      issuer: base,
       authorization_endpoint: `${base}${api}/oauth/authorize`,
       token_endpoint: `${base}${api}/oauth/token`,
       introspection_endpoint: `${base}${api}/oauth/introspect`,
       jwks_uri: `${base}/.well-known/jwks.json`,
       response_types_supported: ["code"],
+      subject_types_supported: ["public"],
+      id_token_signing_alg_values_supported: ["RS256"],
       grant_types_supported: ["authorization_code", "refresh_token"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["client_secret_post"],
