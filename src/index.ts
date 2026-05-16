@@ -5,6 +5,7 @@ import logger from "@/utils/base.logger";
 import { closeQueues } from "@/services/queue.service";
 import { startEmailWorkerService } from "@/services/email.service";
 import { startWebhookWorkerService } from "@/services/webhook-worker.service";
+import { startAuditLogCleanup } from "@/services/audit-cleanup.service";
 import app from "@/app";
 import http from "http";
 
@@ -33,6 +34,8 @@ async function bootstrap(): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
     });
   }
+
+  startAuditLogCleanup();
 
   // Start HTTP server
   server = app.listen(env.PORT, () => {
